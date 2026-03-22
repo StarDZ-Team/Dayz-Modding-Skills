@@ -1,6 +1,21 @@
-# DayZ Modding Skill
+<h1 align="center">DayZ Modding Skill</h1>
 
-> Make AI agents experts at developing DayZ mods in Enforce Script.
+<p align="center">
+  <img src="./logo.png" alt="DayZ Modding Skill" />
+</p>
+
+<p align="center">
+  <strong>Make AI agents experts at developing DayZ mods in Enforce Script.</strong>
+</p>
+
+<p align="center">
+  <a href="https://agentskills.io"><img src="https://img.shields.io/badge/Agent_Skills-compatible-blue?style=flat-square" alt="Agent Skills" /></a>
+  <img src="https://img.shields.io/badge/lines-3,940+-green?style=flat-square" alt="3,940+ lines" />
+  <img src="https://img.shields.io/badge/files-7-orange?style=flat-square" alt="7 files" />
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" alt="MIT" />
+</p>
+
+---
 
 An [Agent Skill](https://agentskills.io) that gives AI coding agents deep knowledge of DayZ modding — Enforce Script language rules, engine API patterns, mod architecture, performance optimization, and professional UI patterns extracted from 10+ production mods.
 
