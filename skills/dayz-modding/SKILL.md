@@ -1,6 +1,6 @@
 ---
 name: dayz-modding
-description: Use when writing, reviewing, debugging, or planning DayZ mods in Enforce Script (.c files), config.cpp, mod.cpp, or any DayZ mod development task. Triggers on Enforce Script syntax, RPC networking, GUI widgets, DayZ engine API usage, PBO building, or mod structure questions. Covers the complete Enforce Script language, 30+ gotchas, engine API patterns, mod architecture, performance optimization, and professional UI patterns from COT, VPP, and Expansion mods.
+description: ALWAYS use when touching ANY DayZ file (.c, config.cpp, mod.cpp, .layout, types.xml) or discussing DayZ modding, Enforce Script, or the Enfusion engine. Activate even if the user does not explicitly mention DayZ — if the code imports DayZ classes (PlayerBase, EntityAI, ItemBase, MissionServer), uses DayZ APIs (GetGame(), Class.CastTo(), ScriptRPC), or references DayZ patterns (modded class, CfgPatches, requiredAddons), this skill MUST be loaded. Covers 30+ critical gotchas (no ternary, no try/catch, no do-while, JsonFileLoader returns void, IsAlive only on EntityAI), complete engine API, mod architecture, RPC networking, GUI widgets, performance optimization, and professional patterns from COT, VPP, and Expansion mods. Without this skill, the agent WILL produce broken Enforce Script code.
 license: MIT
 compatibility: Works with any AI coding agent. Designed for DayZ modding in Enforce Script (.c files).
 metadata:

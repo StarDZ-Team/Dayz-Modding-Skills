@@ -1,0 +1,59 @@
+[
+  {
+    "prompt": "Write me a DayZ mod that loads a JSON config file and prints the values",
+    "expected_output": "Must use JsonFileLoader<T>.JsonLoadFile(path, cfg) with a pre-allocated object passed by reference. Must NOT assign the return value of JsonLoadFile (it returns void). Must use FileExist() guard before loading. Must use $profile: path prefix.",
+    "assertions": [
+      "Code does NOT contain 'cfg = JsonFileLoader' or 'config = JsonFileLoader' on left side of assignment",
+      "Code contains 'new MyConfig()' or similar pre-allocation before JsonLoadFile call",
+      "Code contains 'JsonFileLoader' with two arguments (path, object)",
+      "Code contains 'FileExist' check before loading",
+      "No try/catch blocks present",
+      "No ternary operators (? :) present"
+    ]
+  },
+  {
+    "prompt": "Create a singleton manager class for a DayZ mod that tracks online players",
+    "expected_output": "Must have private static ref instance, GetInstance() with lazy init, DestroyInstance() that nulls static ref. Must include comment or code showing cleanup in OnMissionFinish. Must use Class.CastTo for player downcasting. Must check GetGame().IsServer().",
+    "assertions": [
+      "Code contains 'private static ref' for singleton instance",
+      "Code contains 'DestroyInstance' or equivalent cleanup method that nulls the static ref",
+      "Code mentions OnMissionFinish for cleanup lifecycle",
+      "Code uses Class.CastTo for any Man-to-PlayerBase cast",
+      "Code does NOT use try/catch",
+      "Code does NOT use ternary operator",
+      "Code does NOT use do...while"
+    ]
+  },
+  {
+    "prompt": "Write an RPC handler for a DayZ mod that receives a player name from the client and processes it on the server",
+    "expected_output": "Must validate CallType is Server. Must validate sender identity is not null. Must validate ctx.Read() succeeds before using data. Must use Param types or ScriptRPC Write/Read pattern. Must not trust client data without validation.",
+    "assertions": [
+      "Code checks CallType.Server or equivalent server-side validation",
+      "Code checks sender/identity is not null",
+      "Code checks ctx.Read() return value before using data",
+      "Code does NOT use try/catch for error handling",
+      "Code uses guard clauses (early return) pattern"
+    ]
+  },
+  {
+    "prompt": "Create a custom DayZ item with a continuous action (progress bar) that repairs another item",
+    "expected_output": "Must extend ActionContinuousBase (not ActionSingleUseBase for progress bar actions). Must override CreateConditionComponents with CCI/CCT classes. Must override OnFinishProgressServer for server-side effect. Must register action via modded class SetActions(). Must call super.SetActions().",
+    "assertions": [
+      "Code extends ActionContinuousBase (not ActionSingleUseBase)",
+      "Code contains CreateConditionComponents override",
+      "Code contains OnFinishProgressServer or OnFinishProgress override",
+      "Code contains 'override void SetActions' with 'super.SetActions()'",
+      "Code contains 'AddAction' call to register the action",
+      "Code uses Class.CastTo for any target entity casting"
+    ]
+  },
+  {
+    "prompt": "Write code that finds all vehicles on the DayZ map and prints their positions",
+    "expected_output": "Must NOT use GetObjectsAtPosition3D with huge radius (anti-pattern). Should use a registration-based registry pattern (register in EEInit, unregister in EEDelete) or iterate a cached collection. If the response uses world scan, it must note this is for one-time use only, not per-frame.",
+    "assertions": [
+      "Code does NOT call GetObjectsAtPosition3D with radius > 1000 in a loop or OnUpdate",
+      "Code prefers registration-based tracking OR explicitly warns about performance",
+      "If using world scan, code is NOT inside OnUpdate or per-frame method"
+    ]
+  }
+]
