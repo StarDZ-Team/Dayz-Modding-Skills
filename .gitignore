@@ -1,0 +1,11 @@
+# Local agent/skill installations (created by npx skills add, etc.)
+.agent/
+.agents/
+.claude/
+.windsurf/
+.zencoder/
+skills-lock.json
+
+# OS
+.DS_Store
+Thumbs.db

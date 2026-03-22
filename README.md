@@ -1,7 +1,7 @@
 <h1 align="center">DayZ Modding Skill</h1>
 
 <p align="center">
-  <img src="./logo.png" alt="DayZ Modding Skill" />
+  <img src="./images/logo.png" alt="DayZ Modding Skill" />
 </p>
 
 <p align="center">
