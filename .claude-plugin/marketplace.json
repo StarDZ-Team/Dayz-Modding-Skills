@@ -1,0 +1,22 @@
+{
+  "name": "dayz-modding-skills",
+  "owner": {
+    "name": "StarDZ Team",
+    "email": "stardz@proton.me"
+  },
+  "metadata": {
+    "description": "DayZ modding expertise for AI coding agents - Enforce Script, engine API, mod architecture, performance patterns",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "dayz-modding",
+      "description": "Complete DayZ mod development skill covering Enforce Script language, 30+ gotchas, engine API patterns, mod architecture, performance optimization, and professional UI patterns from COT, VPP, and Expansion mods",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/dayz-modding"
+      ]
+    }
+  ]
+}
