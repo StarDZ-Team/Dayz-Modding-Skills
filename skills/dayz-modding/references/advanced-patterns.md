@@ -623,3 +623,213 @@ class RPCThrottle
     }
 }
 ```
+
+---
+
+## RPC: Additional Details
+
+### Serialization Contract
+Read/Write order must EXACTLY match, type for type. Supported types:
+
+| Type | Size | Notes |
+|------|------|-------|
+| `int` | 4 bytes | 32-bit signed |
+| `float` | 4 bytes | IEEE 754 |
+| `bool` | 1 byte | |
+| `string` | Variable | Length-prefixed UTF-8 |
+| `vector` | 12 bytes | Three floats |
+
+Arrays can be written/read directly. For complex objects, flatten to primitives.
+
+### guaranteed Parameter
+- `true` (reliable): Config changes, permissions, teleports — dropped packet = desync
+- `false` (unreliable): Rapid position updates, visual effects — lower overhead, no retransmit
+
+### RPC Payload Size Limit
+Practical limit ~64 KB per RPC. For large data (config sync, player lists), paginate across multiple RPCs.
+
+### CF Named RPC Pattern
+```c
+// Register
+GetRPCManager().AddRPC("MyMod", "RPC_SpawnItem", this, SingleplayerExecutionType.Server);
+
+// Send
+GetRPCManager().SendRPC("MyMod", "RPC_SpawnItem", new Param1<string>("AK74"), true);
+
+// Handler receives: (CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
+void RPC_SpawnItem(CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
+{
+    if (type != CallType.Server) return;
+    // ...
+}
+```
+
+### Stale RPC Handler Cleanup
+RPC handlers registered by modules destroyed on mission end will crash on next dispatch. Unregister individually or clear the entire registry in OnMissionFinish.
+
+---
+
+## Performance: Additional Patterns
+
+### Expansion's Linked-List Entity Tracking
+O(1) insert/remove without array allocation — each entity stores `m_Next` and `m_Prev`:
+```c
+class TrackedEntity extends EntityAI
+{
+    static TrackedEntity s_Head;
+    TrackedEntity m_Next;
+    TrackedEntity m_Prev;
+
+    void Register()
+    {
+        m_Next = s_Head;
+        if (s_Head) s_Head.m_Prev = this;
+        s_Head = this;
+    }
+
+    void Unregister()
+    {
+        if (m_Prev) m_Prev.m_Next = m_Next;
+        else s_Head = m_Next;
+        if (m_Next) m_Next.m_Prev = m_Prev;
+        m_Next = null;
+        m_Prev = null;
+    }
+}
+```
+
+### String Operation Cache
+Pre-compute expensive string transforms once, not on every search:
+```c
+class SearchableItem
+{
+    string DisplayName;
+    string SearchName;  // Lowercased for search
+
+    void Init(string name)
+    {
+        DisplayName = name;
+        SearchName = name;
+        SearchName.ToLower();  // Once in constructor
+    }
+}
+```
+
+### Position Cache
+Cache `GetPosition()` and refresh periodically instead of every proximity check:
+```c
+protected vector m_CachedPos;
+protected float m_PosTimer;
+
+void OnUpdate(float dt)
+{
+    m_PosTimer += dt;
+    if (m_PosTimer >= 1.0)
+    {
+        m_PosTimer = 0;
+        m_CachedPos = GetPosition();
+    }
+}
+```
+
+### Frame-Count Throttling
+Alternative to timers for per-N-frame operations:
+```c
+m_FrameCounter++;
+if (m_FrameCounter % 10 != 0) return;  // Every 10th frame
+```
+
+### Custom Sort
+Built-in `.Sort()` only works for basic types. For custom sort on complex objects, use insertion sort for small arrays (<100 elements). Never sort per frame — only on data change.
+
+---
+
+## File Patching Workflow
+
+`-filePatching` with `DayZDiag_x64.exe` loads loose files from the P: drive instead of PBOs — fastest iteration.
+
+### What Works
+| File Type | Hot-Reload? |
+|-----------|------------|
+| `.c` scripts | Yes |
+| `.layout` files | Yes |
+| `.paa` textures | Yes |
+| `.ogg` audio | Yes |
+
+### What Does NOT Work
+| File Type | Requires |
+|-----------|----------|
+| `config.cpp` changes | PBO rebuild |
+| New `.c` files (not existing) | PBO rebuild |
+| New model/texture references | PBO rebuild |
+| `model.cfg` changes | PBO rebuild + binarize |
+
+---
+
+## Diagnostic Flowcharts
+
+### "My Mod Doesn't Work At All"
+1. Check script log for `SCRIPT (E)` errors → Fix FIRST error (they cascade)
+2. Is mod in launcher/`-mod=` parameter? → Check `mod.cpp` exists and has no syntax errors
+3. Does log mention your CfgPatches? → Check `config.cpp` syntax, `requiredAddons[]`
+4. Do scripts compile? → Look for compile errors in `.RPT` file
+5. Is there an entry point? → Need `modded class MissionServer/MissionGameplay` or registered module
+6. Still nothing? → Add `Print("MY_MOD: Init reached");` to confirm execution
+
+### "Works Offline, Fails on Dedicated Server"
+1. Is mod installed on server? → Check `-mod=`, PBO in `@Mod/Addons/`
+2. Client-only code on server? → `GetGame().GetPlayer()` returns null on server. Add `IsServer()`/`IsClient()` guards
+3. RPCs working? → Add `Print()` on send/receive. Check IDs match, target exists both sides
+4. Data syncing? → Verify `SetSynchDirty()` after changes. Check read/write order matches
+5. Identity null? → `player.GetIdentity()` is null in offline mode. Test on dedicated.
+
+### "My UI Is Broken"
+1. `CreateWidgets()` returns null? → Layout path wrong or file missing (use forward slashes, no error logged)
+2. Widgets exist but invisible? → Check sizes (>0), `Show(true)`, alpha not 0, widget not behind parent
+3. Visible but not clickable? → Check `priority` (z-order), verify `scriptclass`, confirm handler set
+4. Input stuck after closing? → `ChangeGameFocus()` calls imbalanced (every +1 needs -1)
+
+---
+
+## Launch Parameters Reference
+
+| Parameter | Purpose |
+|-----------|---------|
+| `-filePatching` | Load unpacked files (requires DayZDiag) |
+| `-scriptDebug=true` | Enable script debug features |
+| `-doLogs` | Enable detailed logging |
+| `-adminLog` | Enable admin log |
+| `-freezeCheck` | Detect and log script freezes |
+| `-noPause` | Server doesn't pause when empty |
+| `-noSound` | Disable sound (faster loading) |
+| `-profiles=<path>` | Set profile directory for logs |
+| `-mod=@Mod1;@Mod2` | Load mods (semicolon-separated) |
+| `-serverMod=@Mod` | Server-only mods (not sent to clients) |
+
+---
+
+## Preprocessor Debug Guards
+
+```c
+#ifdef DEVELOPER
+    // Active in DayZDiag, stripped in retail build. Zero cost in release.
+    Print("[DEBUG] " + data);
+#endif
+
+#ifdef DIAG_DEVELOPER
+    // Also DayZDiag only, used for diagnostic features
+#endif
+```
+
+---
+
+## Pre-Release Checklist
+
+- [ ] Remove or guard all `Print()` debug statements with `#ifdef DEVELOPER`
+- [ ] Test with a clean profile (no saved configs)
+- [ ] Test mod loading order (after and before known dependency mods)
+- [ ] Verify no memory leaks (check singleton cleanup, ScriptInvoker Remove)
+- [ ] Verify stringtable.csv has all referenced keys
+- [ ] Test on DEDICATED server (not just listen server)
+- [ ] Check `.RPT` for warnings (not just script log)
+- [ ] PBO is signed with matching `.bikey`

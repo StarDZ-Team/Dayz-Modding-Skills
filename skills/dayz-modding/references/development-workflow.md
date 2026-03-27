@@ -222,6 +222,8 @@ SCRIPT (E):     → Compilation error (code won't load)
 SCRIPT ERROR:   → Runtime error (null ref, bad cast, etc.)
 [StarDZ]        → StarDZ mod log output
 WARNING:        → Non-fatal issues (may indicate problems)
+.RPT file:      → Check for addon loading errors (not in script log)
+#ifdef DEVELOPER → Debug prints active only in DayZDiag
 ```
 
 ---
@@ -354,5 +356,10 @@ Before committing any code, run through this checklist:
 | First time building a mod type | `docs/wiki/en/08-tutorials/` |
 | Quick syntax lookup | `docs/wiki/en/cheatsheet.md` |
 | Term you don't know | `docs/wiki/en/glossary.md` |
+| File patching / hot-reload | `references/advanced-patterns.md` File Patching section |
+| Pre-release preparation | `references/advanced-patterns.md` Pre-Release Checklist |
+| Custom keybindings | `references/advanced-patterns.md` Input System section |
+| Vehicle modding | `references/api-patterns.md` Vehicle System section |
+| Sound integration | `references/api-patterns.md` Sound System section |
 
 **Rule of thumb:** If you're about to use an API you haven't used in this session, take 30 seconds to read the reference first. It's faster than debugging a wrong assumption.

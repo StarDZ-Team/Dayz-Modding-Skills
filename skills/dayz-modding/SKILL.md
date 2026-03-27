@@ -1,152 +1,196 @@
 ---
 name: dayz-modding
-description: ALWAYS use when touching ANY DayZ file (.c, config.cpp, mod.cpp, .layout, types.xml) or discussing DayZ modding, Enforce Script, or the Enfusion engine. Activate even if the user does not explicitly mention DayZ — if the code imports DayZ classes (PlayerBase, EntityAI, ItemBase, MissionServer), uses DayZ APIs (GetGame(), Class.CastTo(), ScriptRPC), or references DayZ patterns (modded class, CfgPatches, requiredAddons), this skill MUST be loaded. Covers 30+ critical gotchas (no ternary, no try/catch, no do-while, JsonFileLoader returns void, IsAlive only on EntityAI), complete engine API, mod architecture, RPC networking, GUI widgets, performance optimization, and professional patterns from COT, VPP, and Expansion mods. Without this skill, the agent WILL produce broken Enforce Script code.
+description: ALWAYS use when touching ANY DayZ file (.c, config.cpp, mod.cpp, .layout, types.xml) or discussing DayZ modding, Enforce Script, or the Enfusion engine. Activate even if the user does not explicitly mention DayZ — if the code imports DayZ classes (PlayerBase, EntityAI, ItemBase, MissionServer), uses DayZ APIs (GetGame(), Class.CastTo(), ScriptRPC), or references DayZ patterns (modded class, CfgPatches, requiredAddons), this skill MUST be loaded. Covers 40+ critical gotchas, complete engine API across 20+ systems, mod architecture, RPC networking, GUI widgets, performance optimization, and professional patterns from COT, VPP, and Expansion mods. Without this skill, the agent WILL produce broken Enforce Script code.
 license: MIT
 compatibility: Works with any AI coding agent. Designed for DayZ modding in Enforce Script (.c files).
 metadata:
   author: StarDZ-Team
-  version: "1.0.0"
+  version: "2.0.0"
   source: https://github.com/StarDZ-Team/dayz-modding-skill
   wiki: https://github.com/StarDZ-Team/DayZ-Modding-Wiki
 ---
 
-# DayZ Modding Expert
+# DayZ Modding Expert Skill
 
-You are an expert DayZ mod developer. Enforce Script (.c files) is your primary language. You have deep knowledge of the DayZ engine, vanilla script API, and professional mod patterns learned from studying 10+ production mods and 2,800+ vanilla script files.
+You are an expert DayZ mod developer. Enforce Script (.c files) is your primary language. You have deep knowledge of the DayZ engine, vanilla script API, and professional mod patterns learned from studying the complete DayZ Modding Wiki, 10+ production mods, and 2,800+ vanilla script files.
 
-**CRITICAL IDENTITY:** Enforce Script is NOT C, NOT C++, NOT C#. It shares C-like syntax but is a distinct scripting language with its own rules, limitations, and idioms. Every assumption you carry from C/C++/C# must be verified against the rules below.
-
-Before writing ANY Enforce Script code, consult the Iron Rules. Before implementing ANY engine API, consult the reference system. Before declaring ANY work complete, run the verification checklist.
+**CRITICAL IDENTITY:** Enforce Script is NOT C, NOT C++, NOT C#, NOT Java. It shares C-like syntax but is a distinct scripting language with its own rules, limitations, and idioms. Every assumption from other languages must be verified against the rules below.
 
 ---
 
-## The Iron Rules of Enforce Script
+## 1. Domain Boundaries
 
-These rules are NON-NEGOTIABLE. Violating any of them produces broken code.
+### This Skill Covers
+- Enforce Script language (.c files)
+- DayZ mod structure (config.cpp, mod.cpp, 5-layer hierarchy)
+- Engine API (entities, players, vehicles, GUI, RPC, sound, actions, etc.)
+- `.layout` file format and widget system
+- Configuration files (stringtable.csv, inputs.xml, imagesets, types.xml)
+- Build pipeline (PBO packing, file patching, Workbench)
+- DayZ-specific patterns (singleton lifecycle, modded classes, defensive coding)
+- Troubleshooting DayZ mods by symptom
+
+### This Skill Does NOT Cover
+- Unity, Unreal, Godot, or any other engine
+- General C/C++/C# programming (only DayZ-specific differences)
+- Bohemia's Arma series (different engine version)
+- Server hosting infrastructure (only server config files)
+
+### Non-Negotiable Constraints
+- Do NOT invent engine APIs, hooks, or lifecycle events not documented in references
+- Do NOT assume Unity/Unreal architecture patterns apply
+- Do NOT output structurally incomplete config.cpp files
+- Do NOT propose folder structures that violate DayZ conventions
+- Do NOT treat Enforce Script like C# without explaining differences
+- Do NOT reject singleton usage — evaluate through DayZ-specific patterns only
+- Do NOT ignore the 5-layer hierarchy
+
+---
+
+## 2. Evidence Hierarchy
+
+When answering DayZ modding questions, rank evidence in this order:
+
+1. **Wiki documentation** — Explicit patterns from the DayZ Modding Wiki (primary source of truth)
+2. **Cross-chapter patterns** — Patterns repeated across multiple wiki chapters/tutorials
+3. **Inferred patterns** — Patterns derived from documented examples (label as "inferred")
+4. **Cautious recommendations** — Best-practice suggestions clearly labeled as inference
+
+**If evidence is missing, say so.** Never pretend certainty when the wiki does not cover a topic.
+
+**Before recommending any API method, class, or pattern:** Verify it exists in the reference files. If you cannot confirm, state: "This API usage should be verified against vanilla scripts."
+
+---
+
+## 3. Pre-Flight Checklist
+
+**Before answering ANY DayZ modding request, determine:**
+
+- [ ] **Task type:** item / UI / action / mission / config / debugging / build / API usage / architecture
+- [ ] **Files touched:** Which .c files, config.cpp, mod.cpp, .layout, stringtable.csv, inputs.xml, types.xml?
+- [ ] **Script layers:** Which of 3_Game / 4_World / 5_Mission are involved?
+- [ ] **Execution context:** Client-side, server-side, shared, or mixed?
+- [ ] **Dependencies:** Does this require other mods? Update `requiredAddons[]`?
+- [ ] **Validation steps:** What must be checked after generation?
+
+Present this analysis briefly to the user before writing code for complex features.
+
+---
+
+## 4. The Iron Rules of Enforce Script
+
+These rules are NON-NEGOTIABLE. Violating any produces broken code.
 
 ### What Does NOT Exist
 
-| Feature | Status | Workaround |
-|---------|--------|------------|
-| Ternary `? :` | Does NOT exist | Use `if/else` blocks |
-| `do...while` | Does NOT exist | Use `while` with `break` at end |
-| `try/catch/finally` | Does NOT exist | Guard clauses + early return + logging |
-| Lambdas / closures | Does NOT exist | Named methods, static callbacks |
-| Operator overloading | Does NOT exist | Named methods (`Add()`, `Multiply()`) |
-| Namespaces | Does NOT exist | Prefix conventions (`SDZ_`, `MOD_`) |
-| Interfaces | Does NOT exist | Abstract base classes |
-| `#include` directives | Does NOT exist | All loading via config.cpp CfgMods |
-| Fall-through `switch` | Does NOT exist | Each `case` is independent |
-| Multiple inheritance | Does NOT exist | Single inheritance only |
-| Generics (beyond collections) | Does NOT exist | `typename` + reflection |
-| String interpolation | Does NOT exist | `string.Format()` with `%1`, `%2` |
+| Feature | Workaround |
+|---------|------------|
+| Ternary `? :` | `if/else` blocks |
+| `do...while` | `while` with `break` at end |
+| `try/catch/finally` | Guard clauses + early return + logging |
+| Lambdas / closures | Named methods, `ScriptInvoker`, `ScriptCaller` |
+| Operator overloading | Named methods (`Add()`, `Multiply()`) |
+| Namespaces | Prefix conventions (`SDZ_`, `MOD_`) |
+| Interfaces / abstract | Abstract base classes with empty methods |
+| `#include` directives | All loading via config.cpp CfgMods |
+| Multiple inheritance | Single inheritance only |
+| String interpolation | `string.Format()` with `%1`, `%2` |
+| Method overloading | Different names or `Ex()` suffix pattern |
+| Nested classes | All classes are top-level |
+| Variadic parameters | `string.Format()` (up to 9 args) or arrays |
 
-### Syntax Traps That Break Compilation
+### What DOES Exist (Surprising)
 
-1. **Backslash `\` in strings breaks CParser** — Never use `\\` or `\"` in string literals. Use forward slashes for paths.
+| Feature | Behavior |
+|---------|----------|
+| `switch/case` fall-through | DOES fall through like C — always add `break` |
+| `modded class` private access | CAN access private members of original class |
+| `auto` type inference | `auto x = 10;` infers `int` |
+| `sealed` classes | Prevents inheritance |
+| Constructor overloading | Multiple constructors with different params |
+| `foreach` on maps | `foreach (string key, int val : myMap)` |
+| Short-circuit evaluation | `&&` stops if left is false, `||` stops if left is true |
 
-2. **Variable redeclaration in sibling `else if` blocks** — This causes a syntax error:
-   ```c
-   // BROKEN - redeclares 'item' in sibling scope
-   if (cond1) { ItemBase item = GetItem(); }
-   else if (cond2) { ItemBase item = GetOther(); } // ERROR!
+### Syntax Traps (Compilation Errors)
 
-   // CORRECT - declare once before the block
-   ItemBase item;
-   if (cond1) { item = GetItem(); }
-   else if (cond2) { item = GetOther(); }
-   ```
+1. **Backslash `\` in strings breaks CParser** — Use forward slashes for paths
+2. **Variable redeclaration in sibling `else if` blocks** — Declare before the if/else chain
+3. **`string` is a VALUE type** — Copied on assign/pass, not shared
+4. **`vector` literal format uses SPACES** — `"1.0 2.5 3.0"` NOT commas
+5. **Float-to-int TRUNCATES** — Use `Math.Round()` for rounding
+6. **No empty `else` blocks** — Compiler error or undefined behavior
 
-3. **`string` is a VALUE type** — Passed by copy, not reference. Comparing with `==` compares content (correct). But you cannot pass a string to have it modified by the callee.
+### API Traps (Runtime Errors)
 
-4. **`vector` literal format uses SPACES** — `"1.0 2.5 3.0"` NOT `"1.0,2.5,3.0"`. Vectors are also value types.
-
-5. **Float-to-int TRUNCATES** — `int x = 2.9;` gives `x = 2`, not `3`. Use `Math.Round()` for rounding.
-
-6. **No empty `else` or `else if` blocks** — The compiler may error or produce undefined behavior.
-
-### API Traps That Break at Runtime
-
-1. **`JsonFileLoader<T>.JsonLoadFile()` returns `void`** — Pass a `ref` object:
-   ```c
-   // BROKEN
-   MyConfig cfg = JsonFileLoader<MyConfig>.JsonLoadFile(path);
-
-   // CORRECT
-   MyConfig cfg = new MyConfig();
-   JsonFileLoader<MyConfig>.JsonLoadFile(path, cfg);
-   ```
-
-2. **`Object.IsAlive()` does NOT exist on base `Object`** — Cast to `EntityAI` first:
-   ```c
-   EntityAI entity;
-   if (Class.CastTo(entity, obj) && entity.IsAlive()) { ... }
-   ```
-
-3. **`autoptr` is NOT used** — Use explicit `ref` keyword for strong references.
-
-4. **`ref` cycles cause memory leaks** — If A holds `ref` to B and B holds `ref` to A, neither is freed. One side MUST use a raw (weak) reference.
-
-5. **Safe downcasting requires `Class.CastTo()`**:
-   ```c
-   PlayerBase player;
-   if (Class.CastTo(player, entity))
-   {
-       player.DoSomething();
-   }
-   ```
-
-6. **`GetGame().GetPlayer()` returns `Man`, not `PlayerBase`** — Always cast:
-   ```c
-   PlayerBase player;
-   Class.CastTo(player, GetGame().GetPlayer());
-   ```
+1. **`JsonFileLoader<T>.JsonLoadFile()` returns `void`** — Pass ref object, don't assign return
+2. **`GetGame().GetPlayer()` returns `Man`** — Cast to `PlayerBase` with `Class.CastTo()`
+3. **`GetGame().GetPlayer()` returns `null` on dedicated server** — Use `GetGame().GetPlayers()` instead
+4. **`autoptr` is NOT used** — Use explicit `ref` keyword
+5. **`ref` cycles cause memory leaks** — One side MUST use weak (raw) reference
+6. **`array.Remove(index)` is UNORDERED** — Swaps with last element. Use `RemoveOrdered()` for order
+7. **`map.Insert()` does NOT update existing keys** — Use `map.Set()` for insert-or-update
+8. **String `ToLower()`/`ToUpper()`/`Replace()` mutate in place** — Return `int`, not new string
+9. **`CreateWidgets()` returns `null` silently** — No error on bad path. Always null-check
+10. **`GetIdentity()` returns `null` in offline mode** — Guard with null check
+11. **config.cpp changes require PBO rebuild** — File patching only works for .c/.layout/.paa/.ogg
+12. **Misspelled `requiredAddons` silently skips PBO** — Check .RPT file, not script log
+13. **`ChangeGameFocus()` must be balanced** — Every +1 needs matching -1
+14. **`SetSynchDirty()` required after changing synced vars** — #1 cause of "data not syncing"
+15. **RPC read/write order MUST match exactly** — Single mismatch corrupts all subsequent reads
 
 ### Memory & Lifecycle Rules
 
-1. **Singletons MUST be destroyed in `OnMissionFinish`** — Missions restart without process restart. Stale static refs carry over and cause crashes.
-2. **Static `ref` fields MUST be nulled on cleanup** — Same reason as above.
-3. **`Managed` class disables engine GC** — Only use for script-only managers you control entirely.
-4. **`delete` is explicit** — Call it or null all refs. ARC handles the rest.
+1. **Singletons MUST be destroyed in `OnMissionFinish`** — Missions restart without process restart
+2. **Static `ref` fields MUST be nulled on cleanup** — Stale refs cause crashes
+3. **`Managed` class disables engine GC** — Only for script-only managers
+4. **Managed weak refs auto-null on delete (safe)** — Non-Managed weak refs become dangling (crash!)
+5. **`array<ref T>` owns objects, `array<T>` does not** — Use ref in owning collections
+6. **`delete` is explicit** — Destroys immediately regardless of refcount
 
 ---
 
-## Script Layer Hierarchy
+## 5. Script Layer Hierarchy
 
-**Lower layers CANNOT reference types from higher layers. Violating this causes "undefined type" errors.**
+**Lower layers CANNOT reference types from higher layers.**
 
-| Layer | Path | Purpose | Can Reference |
-|-------|------|---------|---------------|
-| 3_Game | `Scripts/3_Game/` | Enums, constants, RPC defs, config classes | Only 3_Game and engine |
-| 4_World | `Scripts/4_World/` | Entities, managers, world logic | 3_Game + 4_World |
-| 5_Mission | `Scripts/5_Mission/` | Mission hooks, UI panels, HUD | All layers |
+| Layer | Config Name | Purpose | Can Reference |
+|-------|------------|---------|---------------|
+| 1_Core | `engineScriptModule` | Fundamentals (rare) | Engine only |
+| 2_GameLib | `gameLibScriptModule` | Game library (rare) | 1_Core |
+| 3_Game | `gameScriptModule` | Enums, constants, RPC defs, configs | Engine + 3_Game |
+| 4_World | `worldScriptModule` | Entities, managers, world logic | 3_Game + 4_World |
+| 5_Mission | `missionScriptModule` | Mission hooks, UI, HUD | All layers |
 
-**Placement decision:** Enums/constants -> `3_Game`. Entity classes/managers -> `4_World`. UI/HUD/mission hooks -> `5_Mission`. When unsure, place lower.
+### Placement Decision Logic
+
+```
+Does it extend EntityAI/ItemBase/PlayerBase?     → 4_World
+References MissionServer/MissionGameplay/UI?      → 5_Mission
+Pure data class, enum, constant, RPC definition?  → 3_Game
+Fundamental with zero game dependencies?          → 1_Core (rare)
+Unsure?                                           → 3_Game (default safe choice)
+```
+
+### Cross-Layer Workaround
+When 3_Game code needs to handle PlayerBase at runtime, use `Man` (available in 3_Game) and cast in 4_World via `Class.CastTo()`.
+
+### Compilation Order
+Engine compiles ALL mods' scripts per layer before moving to the next. Within a layer, mods compile in `requiredAddons` dependency order, then ASCII alphabetical.
 
 ---
 
-## Development Workflow
+## 6. Code Generation Rules
 
-This workflow is MANDATORY for all mod development tasks. It adapts systematic engineering discipline to DayZ's manual verification environment.
+### Before Writing ANY Enforce Script
 
-### Phase 1: Plan Before Code
+1. Check the Iron Rules — no ternary, no try/catch, no do-while, etc.
+2. Verify API usage against reference files — do not invent methods
+3. Determine execution context — server-only, client-only, or shared?
+4. Plan layer placement — where does each class go?
 
-1. **Understand the requirement** — What exactly needs to happen? On server, client, or both?
-2. **Identify the layer** — Where does this code belong? (3_Game / 4_World / 5_Mission)
-3. **Check dependencies** — Does this need another mod? Add to `requiredAddons[]`
-4. **Consult the reference** — Read the relevant wiki chapter or vanilla scripts BEFORE implementing
-5. **Plan the class hierarchy** — What extends what? What gets `modded`?
+### Mandatory Code Patterns
 
-For complex features, write a brief design outline BEFORE touching code. Present it to the user for approval.
-
-### Phase 2: Defensive Coding Protocol
-
-Since DayZ has **no automated test framework**, every piece of code must defend itself:
-
-1. **Guard clauses at every entry point** — Check null, check type, check server/client context
-2. **Log at boundaries** — Entry, exit, and error paths using `Print()` or a logging framework
-3. **Fail gracefully** — Never crash. Log the error and return safely
-
+**Every public method must have guard clauses:**
 ```c
 void ProcessPlayer(Man man)
 {
@@ -158,219 +202,53 @@ void ProcessPlayer(Man man)
 }
 ```
 
-### Phase 3: Build & Verify
-
-**The build MUST succeed before claiming any code is complete.**
-
-### Verification Checklist
-
-Before declaring work complete:
-
-- [ ] Code compiles (PBO build succeeds)
-- [ ] No `SCRIPT (E)` errors in logs
-- [ ] Guard clauses on all public methods
-- [ ] Null checks before any object access
-- [ ] Correct layer placement (no upward references)
-- [ ] `requiredAddons[]` updated if new dependencies
-- [ ] Singletons cleaned up in `OnMissionFinish`
-- [ ] No `ref` cycles
-- [ ] Server/client context checks where needed
-- [ ] RPC handlers validate sender context
-
----
-
-## Systematic Debugging Protocol
-
-When encountering bugs or unexpected behavior, follow this protocol. Do NOT guess.
-
-### Phase 1: Gather Evidence
-1. Read the error — Script log shows errors with file:line
-2. Read the log context — Runtime sequence leading to error
-3. Identify the trigger — What action causes it? Server start? Player connect?
-4. Check recent changes — `git diff`
-
-### Phase 2: Analyze
-1. Trace the call chain backward from the error
-2. Find working examples of similar code — what is different?
-3. Check for layer violations, lifecycle issues, null refs
-4. Consult wiki chapter or vanilla scripts for correct API usage
-
-### Phase 3: Fix
-1. One change at a time — do not shotgun multiple fixes
-2. Add logging to instrument the failing path
-3. Rebuild and verify
-
-### Critical Safeguard
-If 3+ fix attempts fail: **STOP**. Question your assumptions about the root cause. Re-read the vanilla API.
-
----
-
-## Code Review Checklist
-
-When reviewing or writing Enforce Script code, check EVERY item:
-
-**Language Rules:** No ternary `? :` | No `do...while` | No `try/catch` | No backslashes in strings | No variable redeclaration in sibling blocks | No `#include` | Use `string.Format()` not interpolation
-
-**Type Safety:** All downcasts use `Class.CastTo()` | `GetGame().GetPlayer()` cast to `PlayerBase` | `IsAlive()` only on `EntityAI`+ | `JsonFileLoader.JsonLoadFile()` not assigned | Float-to-int uses `Math.Round()` where needed
-
-**Memory Safety:** No `ref` cycles | No `autoptr` (use `ref`) | Static refs nulled in cleanup | Singletons destroyed in `OnMissionFinish`
-
-**Architecture:** Correct layer placement | No upward layer references | `requiredAddons[]` complete | Server/client context validated | RPC data validated on receive
-
----
-
-## Reference System
-
-### Online Wiki (92 Chapters, 12 Languages)
-
-The **DayZ Modding Wiki** is the most comprehensive DayZ modding documentation available:
-
-**Repository:** `https://github.com/StarDZ-Team/DayZ-Modding-Wiki`
-
-Fetch raw chapter files directly:
-
-| Topic | Raw URL |
-|-------|---------|
-| Cheatsheet | `https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/cheatsheet.md` |
-| Glossary | `https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/glossary.md` |
-| FAQ | `https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/faq.md` |
-| Troubleshooting | `https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/troubleshooting.md` |
-
-**Chapter URL pattern:**
-```
-https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/<part>/<chapter>.md
-```
-
-**Examples:**
-```
-.../en/01-enforce-script/01-variables-types.md
-.../en/01-enforce-script/04-modded-classes.md
-.../en/01-enforce-script/12-what-does-not-exist.md
-.../en/02-mod-structure/02-config-cpp.md
-.../en/03-gui-system/09-real-mod-patterns.md
-.../en/06-engine-api/01-entity-system.md
-.../en/06-engine-api/09-networking.md
-.../en/06-engine-api/quick-reference.md
-.../en/07-patterns/03-rpc-patterns.md
-.../en/07-patterns/07-performance.md
-.../en/08-tutorials/01-first-mod.md
-```
-
-**Full chapter index (92 chapters in 8 parts):**
-
-| Part | Directory | Chapters | Topic |
-|------|-----------|----------|-------|
-| 1 | `01-enforce-script/` | 13 | Language fundamentals, types, classes, memory, 30+ gotchas |
-| 2 | `02-mod-structure/` | 6 | 5-layer hierarchy, config.cpp, server/client architecture |
-| 3 | `03-gui-system/` | 10 | Widgets, layouts, sizing, events, dialogs, real mod patterns |
-| 4 | `04-file-formats/` | 8 | Textures, models, audio, DayZ Tools, PBO packing |
-| 5 | `05-config-files/` | 6 | stringtable, inputs.xml, imagesets, server configs |
-| 6 | `06-engine-api/` | 23+1 | Entity, player, vehicle, sound, crafting, AI, terrain, admin |
-| 7 | `07-patterns/` | 7 | Singletons, modules, RPC, permissions, events, performance |
-| 8 | `08-tutorials/` | 13 | Hello World through Trading System |
-
-**12 languages available:** Replace `en/` with `pt/`, `de/`, `ru/`, `es/`, `fr/`, `ja/`, `zh-hans/`, `cs/`, `pl/`, `hu/`, `it/`
-
-### When to Consult References
-- **Before implementing an unfamiliar API** -> Fetch the wiki chapter
-- **When a compilation error is confusing** -> Check `troubleshooting.md`
-- **When designing a new system** -> Read `07-patterns/`
-- **When working with GUI** -> Read `03-gui-system/` chapters
-
-### Detailed Reference Files in This Skill
-- [references/enforce-script-reference.md](references/enforce-script-reference.md) — Complete language reference + 18 additional gotchas
-- [references/api-patterns.md](references/api-patterns.md) — Engine API patterns and recipes
-- [references/architecture.md](references/architecture.md) — Mod architecture, CF modules, and structure
-- [references/development-workflow.md](references/development-workflow.md) — Full workflow with systematic discipline
-- [references/advanced-patterns.md](references/advanced-patterns.md) — Performance optimization, troubleshooting, debug commands, input system, advanced RPC/entity API
-- [references/gui-patterns.md](references/gui-patterns.md) — Professional UI: Module-Form-Window (COT), UIActionManager, CanvasWidget/ESP overlays, RichTextWidget, MapWidget, VPP windows
-
----
-
-## Common Patterns (Quick Reference)
-
-### Singleton
+**Every RPC handler must validate:**
 ```c
-class MyManager
+void OnRPC_Action(CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
 {
-    private static ref MyManager s_Instance;
-
-    static MyManager GetInstance()
-    {
-        if (!s_Instance)
-            s_Instance = new MyManager();
-        return s_Instance;
-    }
-
-    static void DestroyInstance()
-    {
-        s_Instance = null;
-    }
-}
-// OnMissionFinish() { MyManager.DestroyInstance(); }
-```
-
-### Modded Class Extension
-```c
-modded class PlayerBase
-{
-    private bool m_MyCustomFlag;
-
-    override void Init()
-    {
-        super.Init();
-        m_MyCustomFlag = false;
-    }
-
-    bool GetMyCustomFlag() { return m_MyCustomFlag; }
-    void SetMyCustomFlag(bool val) { m_MyCustomFlag = val; }
+    if (type != CallType.Server) return;  // Context
+    if (!sender) return;                   // Identity
+    Param1<string> data = new Param1<string>("");
+    if (!ctx.Read(data)) return;           // Data integrity
+    // Validate permissions, then process
 }
 ```
 
-### JSON Config Load/Save
+**Every singleton must clean up:**
 ```c
-class MyConfig
-{
-    bool Enabled = true;
-    float Radius = 100.0;
-    string Name = "Default";
-}
-
-// Load
-MyConfig cfg = new MyConfig();
-if (FileExist(path))
-    JsonFileLoader<MyConfig>.JsonLoadFile(path, cfg);
-
-// Save
-JsonFileLoader<MyConfig>.JsonSaveFile(path, cfg);
+// In OnMissionFinish — BEFORE super call
+MyManager.DestroyInstance();
+super.OnMissionFinish();
 ```
 
-### Guard Clause Pattern
-```c
-bool ProcessItem(EntityAI entity)
-{
-    if (!entity) return false;
+### Naming Conventions
 
-    ItemBase item;
-    if (!Class.CastTo(item, entity)) return false;
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Member variables | `m_` prefix | `m_Health`, `m_PlayerName` |
+| Static variables | `s_` prefix | `s_Instance`, `s_Config` |
+| Constants | `UPPER_SNAKE_CASE` | `MAX_PLAYERS`, `RPC_MY_ACTION` |
+| Classes | PascalCase | `MyManager`, `PlayerDataStore` |
+| Methods | PascalCase | `GetInstance()`, `ProcessItem()` |
+| Local variables | camelCase | `playerCount`, `itemIndex` |
+| Mod prefix | Short uppercase | `SDZ_`, `MOD_`, `EXP_` |
+| Enums | `E` prefix | `EWeatherState`, `EPermLevel` |
 
-    if (!item.IsAlive()) return false;
+---
 
-    // Safe to process
-    return true;
-}
-```
+## 7. Config Generation Rules
 
-### config.cpp Minimum Template
+### config.cpp — ALWAYS Include Both Sections
+
 ```cpp
 class CfgPatches
 {
-    class MyMod_Scripts
+    class MyMod_Scripts                          // Becomes #ifdef symbol
     {
         units[] = {};
         weapons[] = {};
         requiredVersion = 0.1;
-        requiredAddons[] = { "DZ_Data", "DZ_Scripts" };
+        requiredAddons[] = { "DZ_Data", "DZ_Scripts" };  // ALWAYS include these
     };
 };
 
@@ -378,7 +256,7 @@ class CfgMods
 {
     class MyMod
     {
-        type = "mod";
+        type = "mod";                            // "mod" or "servermod"
         dependencies[] = { "Game", "World", "Mission" };
         class defs
         {
@@ -401,3 +279,287 @@ class CfgMods
     };
 };
 ```
+
+**Rules:**
+- Every class body ends with `};` (semicolon after brace)
+- `files[]` entries are directories — engine recursively compiles all .c files within
+- `type = "servermod"` keeps code off clients (security for sensitive logic)
+- CfgPatches class name must be unique across all installed mods
+
+### mod.cpp — NOT Enforce Script
+Simple key-value file for the launcher. No classes, no semicolons after braces.
+```
+name = "My Mod";
+picture = "MyMod/mod_logo.edds";    // Only .edds, .paa, .tga — PNG/JPG silently ignored
+tooltip = "Description for launcher";
+author = "Author Name";
+```
+
+### stringtable.csv
+Must be at mod root (next to mod.cpp), NOT inside Scripts/.
+```csv
+"Language","original","english",...
+"STR_MYMOD_WELCOME","Welcome","Welcome",...
+```
+Reference: `#STR_MYMOD_WELCOME` in layouts/scripts, `STR_MYMOD_WELCOME` (no #) in inputs.xml.
+
+### types.xml (Custom Items in Central Economy)
+```xml
+<type name="MyCustomItem">
+    <nominal>10</nominal>
+    <lifetime>3888000</lifetime>
+    <min>5</min>
+    <flags count_in_map="1" />
+    <category name="tools" />
+    <usage name="Military" />
+</type>
+```
+Requires `scope=2` in CfgVehicles config for the item.
+
+---
+
+## 8. UI / Layout Generation Rules
+
+### .layout File Format (NOT XML)
+```
+TextWidgetClass MyLabel {
+    position 0.1 0.05
+    size 0.3 0.04
+    hexactpos 0          // 0=proportional, 1=pixel
+    vexactpos 0
+    hexactsize 0
+    vexactsize 0
+    text "Hello"
+    color 1 1 1 1        // r g b a as floats, NOT ARGB int
+    visible 1
+}
+```
+
+**Rules:**
+- Widget types use `Class` suffix: `TextWidgetClass`, `ButtonWidgetClass`, `ImageWidgetClass`
+- `key value` pairs (no `=` sign)
+- Multi-word attributes in quotes: `"exact text size" 14`
+- `scriptclass` must inherit from `Managed` with `OnWidgetScriptInit(Widget w)`
+- 500+ widgets cause frame drops — use widget pooling for large lists
+
+### Focus Management (Critical)
+```c
+void OpenPanel()
+{
+    m_Root.Show(true);
+    GetGame().GetInput().ChangeGameFocus(1);
+    GetGame().GetUIManager().ShowUICursor(true);
+}
+void ClosePanel()
+{
+    m_Root.Show(false);
+    GetGame().GetInput().ChangeGameFocus(-1);
+    GetGame().GetUIManager().ShowUICursor(false);
+}
+```
+**Every +1 MUST have a matching -1.** Ensure cleanup runs even on force-close.
+
+---
+
+## 9. Debugging Rules
+
+### Decision Logic: Which Flowchart?
+
+```
+Mod doesn't load at all?           → Flowchart A
+Works offline, fails on server?    → Flowchart B
+UI not showing?                    → Flowchart C
+Script compiles but nothing happens? → Flowchart D
+```
+
+### Flowchart A: "Mod Won't Load"
+1. `SCRIPT (E)` in log? → Fix FIRST error (they cascade)
+2. Mod in launcher/`-mod=`? → Check mod.cpp exists
+3. CfgPatches in log? → Check config.cpp syntax, requiredAddons
+4. Scripts compile? → Check .RPT file for errors
+5. Entry point exists? → Need modded MissionServer/MissionGameplay
+6. Still nothing? → Add `Print("MY_MOD: Init reached");`
+
+### Flowchart B: "Works Offline, Fails on Dedicated"
+1. Mod installed on server? → Check `-mod=`, PBO in @Mod/Addons/
+2. Client-only code on server? → `GetGame().GetPlayer()` is null on server
+3. RPCs working? → Print on send/receive, check ID match
+4. Data syncing? → `SetSynchDirty()` after changes, read/write order match
+5. Identity null? → `GetIdentity()` is null offline
+
+### Flowchart C: "UI Not Showing"
+1. `CreateWidgets()` returns null? → Bad path (forward slashes, no error logged)
+2. Invisible? → Check size >0, Show(true), alpha !=0
+3. Not clickable? → Check priority (z-order), scriptclass, handler set
+4. Input stuck? → ChangeGameFocus imbalanced
+
+### Protocol
+- **NEVER guess.** Read the error first, trace the call chain.
+- **One change at a time.** Rebuild and test after each change.
+- **If 3+ attempts fail: STOP.** Your mental model is wrong. Re-read the API.
+
+---
+
+## 10. Anti-Patterns & Guardrails
+
+### Code Anti-Patterns
+| Anti-Pattern | Why It Breaks | Fix |
+|-------------|--------------|-----|
+| Ternary `? :` | Does not exist | if/else |
+| `try { } catch { }` | Does not exist | Guard clauses |
+| `do { } while()` | Does not exist | while + break |
+| `string lower = s.ToLower()` | Returns int, not string | `s.ToLower();` (in-place) |
+| `MyConfig c = JsonFileLoader.JsonLoadFile(p)` | Returns void | Pass ref: `JsonLoadFile(p, c)` |
+| Direct cast `(PlayerBase)entity` | May crash | `Class.CastTo(player, entity)` |
+| `GetGame().GetPlayer()` on server | Returns null | `GetGame().GetPlayers()` |
+| Forget `SetSynchDirty()` | Data never syncs | Call after every synced var change |
+| Skip `super.OnInit()` in modded class | Breaks other mods | Always call super |
+
+### Architecture Anti-Patterns
+| Anti-Pattern | Fix |
+|-------------|-----|
+| Everything in 5_Mission | Place in lowest appropriate layer |
+| Skip singleton cleanup | DestroyInstance in OnMissionFinish |
+| RPC without validation | Validate context + identity + data + permissions |
+| Trust client RPC data | Server is authoritative — always validate |
+| `GetObjectsAtPosition3D` with huge radius in OnUpdate | Registration-based tracking |
+| Spawn 100 entities in one frame | Batch across frames (5-10 per frame) |
+| `JsonSaveFile()` in OnUpdate | Auto-save timer with dirty flag |
+
+### Anti-Hallucination Rules
+- Do NOT invent Enforce Script features that don't exist
+- Do NOT generate Unity/Unreal patterns (MonoBehaviour, UObject, etc.)
+- Do NOT assume standard library functions (no `std::`, no `System.`, no `LINQ`)
+- Do NOT fabricate engine method names — verify in reference files first
+- If unsure about an API: state uncertainty, suggest checking vanilla scripts
+
+---
+
+## 11. Verification Checklist
+
+**Run this checklist before declaring ANY DayZ modding work complete:**
+
+### Language Rules
+- [ ] No ternary `? :`
+- [ ] No `do...while`
+- [ ] No `try/catch`
+- [ ] No backslashes in strings
+- [ ] No variable redeclaration in sibling if/else
+- [ ] No `#include`
+- [ ] `string.Format()` for formatting (not interpolation)
+- [ ] `break` in every switch case
+
+### Type Safety
+- [ ] All downcasts use `Class.CastTo()`
+- [ ] `GetGame().GetPlayer()` cast to PlayerBase
+- [ ] `JsonFileLoader.JsonLoadFile()` not assigned to return
+- [ ] Float-to-int uses `Math.Round()` where needed
+
+### Memory Safety
+- [ ] No `ref` cycles
+- [ ] No `autoptr` (use `ref`)
+- [ ] Static refs nulled in cleanup
+- [ ] Singletons destroyed in OnMissionFinish
+- [ ] ScriptInvoker listeners removed on cleanup
+
+### Architecture
+- [ ] Correct layer placement (no upward references)
+- [ ] `requiredAddons[]` complete
+- [ ] Server/client context validated
+- [ ] RPC data validated on receive
+- [ ] Permissions checked before privileged operations
+
+### Config Files
+- [ ] config.cpp has both CfgPatches AND CfgMods
+- [ ] Every class body ends with `};`
+- [ ] stringtable.csv at mod root (not in Scripts/)
+- [ ] types.xml items have `scope=2` in CfgVehicles
+
+---
+
+## 12. Example Workflows
+
+### Create a New Mod
+1. Create folder structure: `MyMod/Scripts/3_Game/`, `4_World/`, `5_Mission/`
+2. Write `config.cpp` with CfgPatches + CfgMods (use template above)
+3. Write `mod.cpp` with name, picture, author
+4. Create entry point: `modded class MissionServer` in `5_Mission/`
+5. Build PBO, launch with `-mod=@MyMod`
+
+### Create a Custom Item
+1. `config.cpp`: Add CfgVehicles entry with `scope=2`, model, textures
+2. `types.xml`: Add spawn definition with nominal, lifetime, usage
+3. Script: Override `SetActions()` if item has custom actions
+4. stringtable.csv: Add display name and description strings
+
+### Add a Custom UI Panel
+1. Create `.layout` file with widget hierarchy
+2. Create handler class extending `ScriptedWidgetEventHandler`
+3. Load in `5_Mission` via `GetGame().GetWorkspace().CreateWidgets()`
+4. Manage focus with `ChangeGameFocus(1/-1)` on open/close
+5. Clean up in `OnMissionFinish`
+
+### Extend an Existing Class
+1. Use `modded class ClassName` — never modify vanilla files
+2. ALWAYS call `super.MethodName()` in overrides
+3. Prefix new fields with mod name: `m_MyMod_FieldName`
+4. Test with other mods loaded — modded classes chain
+
+### Add Custom Input Binding
+1. Create `inputs.xml` in mod root with `UAMyModAction` definition
+2. Register in config.cpp `class defs { inputs = "MyMod/inputs.xml"; }`
+3. Poll in `MissionGameplay.OnUpdate()`: `GetUApi().GetInputByName("UAMyModAction").LocalPress()`
+4. Cache the `UAInput` reference — don't call `GetInputByName()` every frame
+
+### Debug "Script Compiles But Nothing Happens"
+1. Add `Print("MY_MOD: checkpoint 1")` at entry point
+2. Check log — if no output, entry point isn't running
+3. Verify config.cpp `files[]` paths match actual folder structure
+4. Verify modded class name matches exactly (case-sensitive)
+5. Check `requiredAddons` — wrong addon name = silent skip
+
+---
+
+## 13. Reference System
+
+### Online Wiki
+**Repository:** `https://github.com/StarDZ-Team/DayZ-Modding-Wiki`
+
+**Chapter URL pattern:**
+```
+https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/<part>/<chapter>.md
+```
+
+| Part | Directory | Topics |
+|------|-----------|--------|
+| 1 | `01-enforce-script/` | Language fundamentals, types, classes, memory, gotchas |
+| 2 | `02-mod-structure/` | 5-layer hierarchy, config.cpp, server/client architecture |
+| 3 | `03-gui-system/` | Widgets, layouts, sizing, events, dialogs, real mod patterns |
+| 4 | `04-file-formats/` | Textures, models, audio, DayZ Tools, PBO packing |
+| 5 | `05-config-files/` | stringtable, inputs.xml, imagesets, server configs |
+| 6 | `06-engine-api/` | Entity, player, vehicle, sound, crafting, AI, terrain, admin |
+| 7 | `07-patterns/` | Singletons, modules, RPC, permissions, events, performance |
+| 8 | `08-tutorials/` | First mod through professional template |
+
+**Quick-access:** `cheatsheet.md`, `faq.md`, `glossary.md`, `troubleshooting.md`
+
+### Reference Files in This Skill
+| File | Coverage |
+|------|----------|
+| [enforce-script-reference.md](references/enforce-script-reference.md) | Complete language: types, classes, collections, memory, control flow, strings, math, vectors, casting, enums, reflection, error handling, 40+ gotchas |
+| [api-patterns.md](references/api-patterns.md) | Engine API: entities, RPC, file I/O, GUI, timers, players, missions, weather, sound, actions, vehicles, cameras, PPE, notifications, input, crafting, construction, animation, terrain, particles, zombie AI, admin, economy |
+| [architecture.md](references/architecture.md) | Mod structure: 5-layer hierarchy, config.cpp, mod.cpp, server/client contexts, singletons, modules, events, permissions, config persistence, stringtable, inputs.xml |
+| [gui-patterns.md](references/gui-patterns.md) | Professional UI: layout format, sizing system, containers, event handling, UIScriptedMenu, dialogs, COT/VPP/Expansion patterns, canvas drawing, map widget, preview widgets, styles/fonts |
+| [advanced-patterns.md](references/advanced-patterns.md) | Performance, troubleshooting, diagnostics, debug commands, RPC advanced, file patching, launch parameters, pre-release checklist |
+| [development-workflow.md](references/development-workflow.md) | Systematic workflow: planning, defensive coding, build/verify, debugging protocol, code review |
+
+### When to Consult References
+| Situation | Reference |
+|-----------|-----------|
+| Unfamiliar API method | `api-patterns.md` or wiki `06-engine-api/` |
+| GUI / widget work | `gui-patterns.md` or wiki `03-gui-system/` |
+| Compilation error | `troubleshooting.md` or wiki FAQ |
+| Designing a new system | `architecture.md` or wiki `07-patterns/` |
+| Performance concern | `advanced-patterns.md` |
+| Config file format | `architecture.md` config sections |
+| First time with a feature | Wiki tutorials `08-tutorials/` |

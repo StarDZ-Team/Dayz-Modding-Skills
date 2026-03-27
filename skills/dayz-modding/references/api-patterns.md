@@ -805,3 +805,506 @@ Key rules:
 - `quantmin`/`quantmax` are percentages (0-100), not absolute counts
 - Items need at least one `<usage>` and `<category>` tag to spawn
 - `flags count_in_map="1"` is required for the economy to track spawned items
+
+---
+
+## Vehicle System
+
+### Class Hierarchy
+```
+Transport > Car > CarScript (scripted vehicles)
+Transport > Boat > BoatScript
+```
+
+### Vehicle Fluids
+```c
+// CarFluid enum: FUEL, OIL, BRAKE, COOLANT
+float fuel = car.GetFluidFraction(CarFluid.FUEL);    // 0.0-1.0
+float capacity = car.GetFluidCapacity(CarFluid.FUEL); // Liters
+car.Fill(CarFluid.FUEL, 50.0);                        // Add 50L
+car.Leak(CarFluid.OIL, 5.0);                          // Remove 5L
+```
+
+### Engine Control
+```c
+car.EngineStart();
+car.EngineStop();
+bool running = car.EngineIsOn();
+float rpm = car.EngineGetRPM();
+float speed = car.GetSpeedometer();                    // km/h
+```
+
+### Crew Management
+```c
+int seats = car.CrewSize();
+Man driver = car.CrewMember(0);                        // 0 = driver
+car.CrewGetOut(0);                                      // Eject seat 0
+// Player checks
+bool inVehicle = player.IsInVehicle();
+Transport vehicle = player.GetDrivingVehicle();
+```
+
+### Spawn Ready Vehicle
+```c
+CarScript car = CarScript.Cast(GetGame().CreateObject("OffroadHatchback", pos, false, false, true));
+if (car)
+{
+    car.Fill(CarFluid.FUEL, car.GetFluidCapacity(CarFluid.FUEL));
+    car.Fill(CarFluid.OIL, car.GetFluidCapacity(CarFluid.OIL));
+    car.Fill(CarFluid.BRAKE, car.GetFluidCapacity(CarFluid.BRAKE));
+    car.Fill(CarFluid.COOLANT, car.GetFluidCapacity(CarFluid.COOLANT));
+    car.OnDebugSpawn();  // Attaches all parts (wheels, doors, battery, etc.)
+}
+```
+
+### CarScript Callbacks
+```c
+modded class CarScript
+{
+    override void OnEngineStart() { super.OnEngineStart(); }
+    override void OnEngineStop() { super.OnEngineStop(); }
+    override void OnContact(string zoneName, vector localPos, IEntity other, Contact data) { super.OnContact(zoneName, localPos, other, data); }
+    override void OnFluidChanged(CarFluid fluid, float newValue, float oldValue) { super.OnFluidChanged(fluid, newValue, oldValue); }
+}
+```
+
+---
+
+## Camera System
+
+```c
+// Global camera accessors
+vector camPos = GetCurrentCameraPosition();
+vector camDir = GetCurrentCameraDirection();
+
+// World-to-screen conversion
+vector screenPos = GetGame().GetScreenPos(worldPos);        // Absolute pixels
+vector screenRel = GetGame().GetScreenPosRelative(worldPos); // 0.0-1.0 relative
+// screenPos[2] > 0 means in front of camera
+
+// Camera type detection
+int camType = player.GetCurrentCameraType();
+// DayZPlayerCameras: DAYZCAMERA_1ST, DAYZCAMERA_3RD_ERC, DAYZCAMERA_IRONSIGHTS, DAYZCAMERA_OPTICS, DAYZCAMERA_3RD_VEHICLE
+
+// Free debug camera
+FreeDebugCamera.SetActive(true);
+FreeDebugCamera cam = GetFreeDebugCamera();
+cam.SetPosition(pos);
+
+// DOF control
+GetGame().GetWorld().SetDOF(focusDist, focusLength, nearBlur, blurAmount, offset);
+```
+
+---
+
+## Post-Process Effects (PPE)
+
+```c
+// Get a requester from the bank
+PPERequester req = PPERequesterBank.GetRequester(PPERequesterBank.REQ_INVENTORYBLUR);
+
+// Start/Stop
+req.Start();
+req.Stop();
+
+// Custom PPE requester
+class MyPPERequester extends PPERequester
+{
+    override protected void OnStart(Param par = null)
+    {
+        super.OnStart(par);
+        // Vignette effect
+        SetTargetValueFloat(PostProcessEffectType.Glow, PPEGlow.PARAM_VIGNETTE, false, 0.8, PPEManager.L_0_STATIC, PPOperators.SET);
+        // Color grading
+        SetTargetValueFloat(PostProcessEffectType.ColorGrading, PPEColorGrading.PARAM_SATURATION, false, 0.3, PPEManager.L_0_STATIC, PPOperators.SET);
+    }
+}
+
+// PPOperators: SET, ADD, ADD_RELATIVE, HIGHEST, LOWEST, MULTIPLY, OVERRIDE
+// Common requesters: REQ_INVENTORYBLUR, REQ_CAMERANV, REQ_DEATHEFFECTS, REQ_BLOODLOSS, REQ_FLASHBANGEFFECTS
+// Priority layers: L_0_STATIC (0), L_1_VALUES (1), L_2_SCRIPTS (2), L_3_EFFECTS (3), L_4_OVERLAY (4), L_LAST (100)
+```
+
+---
+
+## Notification System
+
+```c
+// Server to specific player
+NotificationSystem.SendNotificationToPlayerExtended(player, 10, "Title", "Message", "set:dayz_gui image:icon_info");
+
+// Server broadcast to all
+NotificationSystem.SendNotificationToPlayerIdentityExtended(null, 10, "Broadcast", "Server message", "");
+
+// Client-side local notification
+NotificationSystem.AddNotificationExtended(5, "Local", "Client-only message", "set:dayz_gui image:icon_info");
+```
+
+---
+
+## Input System
+
+### Polling Input in OnUpdate
+```c
+modded class MissionGameplay
+{
+    private UAInput m_MyAction;  // Cache the input reference
+
+    override void OnInit()
+    {
+        super.OnInit();
+        m_MyAction = GetUApi().GetInputByName("UAMyModAction");
+    }
+
+    override void OnUpdate(float timeslice)
+    {
+        super.OnUpdate(timeslice);
+        if (!m_MyAction) return;
+        if (!GetGame().GetPlayer()) return;
+        if (GetGame().GetUIManager().GetMenu()) return;  // Skip if menu open
+
+        if (m_MyAction.LocalPress())
+            OnMyActionPressed();
+    }
+}
+```
+
+### Input State Methods
+```c
+UAInput input = GetUApi().GetInputByName("UAMyAction");
+input.LocalPress();       // True for ONE frame when key first pressed
+input.LocalRelease();     // True for ONE frame when key released
+input.LocalHold();        // True while key held (after hold threshold)
+input.LocalHoldBegin();   // True for one frame when hold threshold reached
+input.LocalClick();       // True for one frame on quick press+release
+input.LocalDoubleClick(); // True for one frame on double-click
+input.LocalValue();       // Float 0.0-1.0 (for analog inputs)
+```
+
+### Input Suppression
+```c
+input.Supress();                             // Suppress current frame (note: single 's')
+input.ForceDisable(true);                    // Disable until re-enabled
+GetGame().GetMission().AddActiveInputExcludes({"menu"}); // Block gameplay inputs
+GetGame().GetMission().RemoveActiveInputExcludes({"menu"}, true); // Restore
+```
+
+---
+
+## Crafting System
+
+### Recipe-Based Crafting
+```c
+class MyRecipe extends RecipeBase
+{
+    override void Init()
+    {
+        m_Name = "#STR_craft_stone_knife";
+        m_IsInstaRecipe = false;            // Uses progress bar
+        m_AnimationLength = 2.0;            // Actual time = 2.0 * 4.0 = 8.0 seconds
+        m_Specialty = -0.01;                // Negative = precise, positive = rough
+
+        // Ingredient 0: sharp stone
+        InsertIngredient(0, "SmallStone");
+        m_IngredientAddHealth[0] = -20;     // Damage stone by 20
+        m_IngredientDestroy[0] = false;
+
+        // Ingredient 1: stick
+        InsertIngredient(1, "WoodenStick");
+        m_IngredientDestroy[1] = true;      // Consume stick
+
+        // Result
+        AddResult("StoneKnife");
+        m_ResultToInventory[0] = -2;        // -2 = place on ground, -1 = player inventory
+    }
+
+    override bool CanDo(ItemBase ingredients[], PlayerBase player)
+    {
+        return true;  // Additional conditions
+    }
+
+    override void Do(ItemBase ingredients[], PlayerBase player, array<ItemBase> results, float specialty_weight)
+    {
+        // Post-craft logic
+    }
+}
+```
+
+---
+
+## Animation System
+
+### Movement State
+```c
+HumanMovementState state = new HumanMovementState();
+player.GetMovementState(state);
+
+// Stance: STANCEIDX_ERECT (0), CROUCH (1), PRONE (2), RAISEDERECT (3), RAISEDCROUCH (4), RAISEDPRONE (5)
+int stance = state.m_iStanceIdx;
+
+// Movement: IDLE (0), WALK (1), RUN (2), SPRINT (3)
+int movement = state.m_iMovement;
+```
+
+### Object Animations
+```c
+// Animation phase (0.0-1.0) — used for doors, gates, hatches
+entity.SetAnimationPhase("doors_driver", 1.0);  // Open
+entity.SetAnimationPhase("doors_driver", 0.0);  // Close
+float phase = entity.GetAnimationPhase("doors_driver");
+```
+
+### Emotes
+```c
+// Trigger emote programmatically
+EmoteManager mgr = player.GetEmoteManager();
+if (mgr) mgr.CreateEmoteCBFromMenu(EmoteConstants.ID_EMOTE_DANCE);
+```
+
+---
+
+## Terrain & World Queries
+
+```c
+// Surface height
+float groundY = GetGame().SurfaceY(x, z);              // Raw terrain
+float roadY = GetGame().SurfaceRoadY(x, z);             // Including roads
+
+// Surface type (material name)
+string surfaceType;
+GetGame().SurfaceGetType(x, z, surfaceType);
+
+// Surface normal (slope direction)
+vector normal = GetGame().SurfaceGetNormal(x, z);
+
+// Water queries
+bool isSea = GetGame().SurfaceIsSea(x, z);
+bool isPond = GetGame().SurfaceIsPond(x, z);
+
+// Raycasting
+vector from = player.GetPosition() + "0 1.5 0";
+vector to = from + player.GetDirection() * 50;
+vector contactPos, contactDir;
+int contactComponent;
+set<Object> hitObjects = new set<Object>();
+
+if (DayZPhysics.RaycastRV(from, to, contactPos, contactDir, contactComponent, hitObjects, null, player, false, false, ObjIntersectView, 0.0, CollisionFlags.NEARESTCONTACT))
+{
+    // contactPos = hit point, hitObjects[0] = what was hit
+}
+
+// ObjIntersect: Fire, View, Geom, IFire, None
+// CollisionFlags: FIRSTCONTACT, NEARESTCONTACT, ONLYSTATIC, ONLYDYNAMIC, ALLOBJECTS
+```
+
+---
+
+## Particle Effects
+
+```c
+// High-level API — Particle static methods (legacy, simple)
+Particle p = Particle.PlayOnObject(ParticleList.CAMP_FIRE_START, entity, "0 0 0");
+Particle p2 = Particle.PlayInWorld(ParticleList.CAMP_SMALL_SMOKE, worldPos);
+
+// Modern API — ParticleManager (recommended, pool-based)
+ParticleManager pm = ParticleManager.GetInstance();
+if (pm)
+{
+    ParticleSource ps = pm.PlayOnObject(ParticleList.CAMP_SMALL_FIRE, entity, "0 0.5 0");
+    ParticleSource ps2 = pm.PlayInWorld(ParticleList.SMOKE_GENERIC_WRECK, worldPos);
+}
+
+// Stop
+p.StopParticle();
+p.StopParticle(StopParticleFlags.IMMEDIATE);  // Instant stop
+
+// Runtime parameter tuning
+p.SetParameter(-1, EmitorParam.VELOCITY, 5.0);
+p.SetParameter(-1, EmitorParam.SIZE, 2.0);
+p.SetParameter(-1, EmitorParam.BIRTH_RATE, 50.0);
+p.ScaleParticleParamFromOriginal(EmitorParam.SIZE, 1.5);
+
+// Common ParticleList IDs: CAMP_FIRE_START, CAMP_SMALL_SMOKE, CAMP_SMALL_FIRE,
+// BLEEDING_SOURCE, EXPLOSION_LANDMINE, BONFIRE_FIRE, SMOKE_GENERIC_WRECK
+```
+
+---
+
+## Zombie AI System
+
+### Class Hierarchy
+```
+DayZCreature > DayZCreatureAI > DayZInfected > ZombieBase > ZombieMaleBase/ZombieFemaleBase
+```
+
+### Mind States
+```c
+// Via input controller
+int mindState = zombie.GetInputController().GetMindState();
+// MINDSTATE_CALM (0), DISTURBED (1), ALERTED (2), CHASE (3), FIGHT (4)
+```
+
+### Modding Zombie Behavior
+```c
+modded class ZombieBase
+{
+    override bool ModCommandHandlerBefore(float dt, int currentCommand, bool isHandled)
+    {
+        // Execute BEFORE vanilla command processing
+        return super.ModCommandHandlerBefore(dt, currentCommand, isHandled);
+    }
+
+    override bool ModCommandHandlerInside(float dt, int currentCommand, bool isHandled)
+    {
+        // Execute DURING vanilla command processing
+        return super.ModCommandHandlerInside(dt, currentCommand, isHandled);
+    }
+
+    override bool ModCommandHandlerAfter(float dt, int currentCommand, bool isHandled)
+    {
+        // Execute AFTER vanilla command processing
+        return super.ModCommandHandlerAfter(dt, currentCommand, isHandled);
+    }
+}
+```
+
+---
+
+## Admin & Server
+
+### Player Management
+```c
+// Get all players
+ref array<Man> players = new array<Man>();
+GetGame().GetPlayers(players);
+
+// Player identity details
+PlayerIdentity id = player.GetIdentity();
+string steamId = id.GetPlainId();     // Steam64 ID
+string beGuid = id.GetId();           // BattlEye GUID
+string name = id.GetName();
+
+// Network stats
+int ping = id.GetPingAct();
+int bandwidth = id.GetBandwidthAvg();
+
+// Kick player
+GetGame().DisconnectPlayer(identity);
+
+// Admin log
+GetGame().AdminLog("Player " + name + " performed action X");
+```
+
+### Chat
+```c
+// Send chat message (server-side)
+GetGame().ChatMP(player, "Admin message", "colorImportant");
+// Color classes: "colorStatusChannel", "colorImportant", "colorAction", "colorFriendly"
+```
+
+### Time Control
+```c
+int year, month, day, hour, min;
+GetGame().GetWorld().GetDate(year, month, day, hour, min);
+GetGame().GetWorld().SetDate(2024, 6, 15, 12, 0);        // Set to noon
+bool night = GetGame().GetWorld().IsNight();
+```
+
+---
+
+## Construction System
+
+### Base Building Classes
+```c
+// BaseBuildingBase > Fence, Watchtower, ShelterSite
+// Construction parts managed via Construction class
+
+// Check if part can be built
+Construction construction = building.GetConstruction();
+if (construction.CanBuildPart("wall_base_down", player, true))
+{
+    construction.BuildPartServer("wall_base_down", AT_BUILD_WOOD);
+}
+
+// Visual state via animation phases
+building.SetAnimationPhase("wall_base_down", 0.0);  // Built (visible)
+building.SetAnimationPhase("wall_base_down", 1.0);  // Unbuilt (hidden)
+
+// Physics
+building.AddProxyPhysics("wall_base_down");     // Enable collision
+building.RemoveProxyPhysics("wall_base_down");  // Disable collision
+```
+
+---
+
+## Sound System
+
+### Config-Based Sounds
+```cpp
+// In config.cpp
+class CfgSoundShaders
+{
+    class MyMod_AlertShader
+    {
+        samples[] = { {"MyMod\sounds\alert", 1} };  // Path WITHOUT .ogg extension
+        volume = 1.0;
+        range = 50;       // Meters — silence beyond this
+        radius = 5;       // Meters — full volume within this
+    };
+};
+
+class CfgSoundSets
+{
+    class MyMod_AlertSoundSet
+    {
+        soundShaders[] = { "MyMod_AlertShader" };
+        spatial = 1;      // 1=3D world sound, 0=2D UI sound
+        // 3D sounds MUST be mono .ogg files
+    };
+};
+```
+
+### Script API
+```c
+// Play at position (recommended for one-shots)
+EffectSound sound = SEffectManager.PlaySound("MyMod_AlertSoundSet", worldPos);
+sound.SetAutodestroy(true);
+
+// Play on entity
+EffectSound snd;
+player.PlaySoundSet(snd, "MyMod_AlertSoundSet", 0, 0);
+player.StopSoundSet(snd);
+
+// UI sound (2D, no spatialization)
+AbstractWave wave = GetGame().CreateSoundOnObject(null, "MyMod_UISoundSet", 0, false);
+wave.SetVolumeRelative(0.5);
+wave.Play();
+```
+
+---
+
+## Central Economy Files Reference
+
+| File | Purpose |
+|------|---------|
+| `types.xml` | Item spawn definitions (nominal, lifetime, locations) |
+| `events.xml` | Dynamic event spawns (vehicles, helicrashes, airdrops) |
+| `globals.xml` | Economy parameters (animal/zombie counts, cleanup timers) |
+| `cfgspawnabletypes.xml` | Pre-attached items and cargo on spawned entities |
+| `cfgrandompresets.xml` | Reusable loot pool definitions |
+| `cfgeconomycore.xml` | Root class registration, CE folder config |
+| `cfglimitsdefinition.xml` | Valid category/usage/value flag definitions |
+| `cfgplayerspawnpoints.xml` | Player spawn locations |
+
+### globals.xml Key Parameters
+```xml
+<var name="AnimalMaxCount" type="0" value="200"/>
+<var name="ZombieMaxCount" type="0" value="1000"/>
+<var name="CleanupLifetimeDeadPlayer" type="0" value="3600"/>
+<var name="CleanupLifetimeDeadInfected" type="0" value="330"/>
+<var name="FlagRefreshFrequency" type="0" value="432000"/>
+<var name="LootDamageMin" type="1" value="0.0"/>
+<var name="LootDamageMax" type="1" value="0.82"/>
+<var name="TimeLogin" type="0" value="15"/>
+<var name="TimeLogout" type="0" value="15"/>
+```

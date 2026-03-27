@@ -318,12 +318,12 @@ while (true)
     if (ShouldStop()) break;
 }
 
-// switch (NO fall-through)
+// switch (DOES fall through — always add break!)
 switch (action)
 {
     case 0:
         HandleIdle();
-        break;
+        break;           // Without break, falls through to case 1!
     case 1:
         HandleRun();
         break;
@@ -344,9 +344,9 @@ s.Length();                              // 11
 s.Substring(0, 5);                      // "Hello"
 s.IndexOf("World");                     // 6 (-1 if not found)
 s.Contains("World");                    // true
-s.Replace("World", "DayZ");            // "Hello DayZ"
-s.ToLower();                           // "hello world"
-s.ToUpper();                           // "HELLO WORLD"
+s.Replace("World", "DayZ");            // Modifies s IN PLACE, returns int count
+s.ToLower();                           // Modifies s IN PLACE, returns int length
+s.ToUpper();                           // Modifies s IN PLACE, returns int length
 s.Trim();                              // Remove whitespace
 s.TrimInPlace();                       // In-place trim
 s.Split(" ", outArray);                // Split into array
@@ -618,14 +618,21 @@ These are traps that go beyond the Iron Rules in SKILL.md. Each has caused real 
 
 ### String Traps
 
-4. **`ToLower()` and `ToUpper()` modify in place** — They do NOT return a new string. The original variable is mutated:
+4. **`ToLower()` and `ToUpper()` modify in place and return `int` (length)** — They do NOT return a new string:
    ```c
    string name = "Hello";
    name.ToLower();         // name is now "hello" (modified in place!)
-   // NOT: string lower = name.ToLower(); // This does NOT work as expected
+   // NOT: string lower = name.ToLower(); // Returns int, not string!
    ```
 
 5. **`TrimInPlace()` also modifies in place** — Same behavior as `ToLower()`.
+
+6. **`Replace()` modifies in place and returns `int` (replacement count)** — Does NOT return a new string:
+   ```c
+   string s = "Hello World";
+   int count = s.Replace("World", "DayZ"); // s is now "Hello DayZ", count is 1
+   // NOT: string result = s.Replace(...); // Returns int, not string!
+   ```
 
 ### Class & Type Traps
 
@@ -660,3 +667,437 @@ These are traps that go beyond the Iron Rules in SKILL.md. Each has caused real 
 17. **Net Sync Variable registration must happen in the constructor** — Call `RegisterNetSyncVariableInt()`, `RegisterNetSyncVariableFloat()`, `RegisterNetSyncVariableBool()` in the entity constructor. Override `OnVariablesSynchronized()` to react on the client side.
 
 18. **Read/write order in RPC MUST match exactly** — If the sender writes `string, int, float`, the receiver must read `string, int, float` in that exact order. A single mismatch corrupts all subsequent reads.
+
+---
+
+## Additional Language Features
+
+### auto Keyword
+```c
+auto count = 10;           // Inferred as int
+auto name = "Hello";       // Inferred as string
+auto player = GetGame().GetPlayer(); // Inferred as Man
+```
+
+### const Keyword
+```c
+const int MAX_PLAYERS = 60;
+const float GRAVITY = 9.81;
+const string MOD_NAME = "MyMod";
+// const only works on value types. No const for reference types/objects.
+```
+
+### Truthiness Rules
+What evaluates to `false`: `0` (int), `0.0` (float), `""` (empty string), `null` (reference). Everything else is `true`. Short-circuit evaluation applies: `&&` stops if left is false, `||` stops if left is true.
+
+### null vs NULL
+Both `null` and `NULL` work. `nullptr` does NOT exist. Idiomatic null check: `if (!obj)`.
+
+### Implicit Type Conversions
+| From | To | Behavior |
+|------|-----|----------|
+| `int` | `float` | Safe (no loss) |
+| `float` | `int` | Truncates (use `Math.Round()`) |
+| `int`/`float` | `bool` | Non-zero = `true` |
+| `bool` | `int` | `true` = 1, `false` = 0 |
+
+---
+
+## Classes: Additional Details
+
+### Constructor Overloading
+Multiple constructors with different parameter lists are supported on regular classes:
+```c
+class MyClass
+{
+    void MyClass() { /* no-arg */ }
+    void MyClass(string name) { /* one-arg */ }
+    void MyClass(string name, int id) { /* two-arg */ }
+}
+```
+
+### Colon Syntax for Inheritance
+`class Truck : BaseVehicle` is equivalent to `class Truck extends BaseVehicle`.
+
+### sealed Keyword
+Prevents a class from being inherited: `sealed class FinalClass { }`.
+
+### Parameter Modifiers
+| Modifier | Semantics |
+|----------|-----------|
+| `out` | Write-only — caller reads after call returns |
+| `inout` | Read+write — caller sees modifications |
+| `notnull` | Compiler enforces non-null at call site |
+
+### Modded Class Special Rules
+- **Can access `private` members** of the original class (special modded keyword rule)
+- **Can override `const` values** from the original class
+- **Field naming**: Use mod-specific prefixes (`m_MyMod_Points`) to avoid collisions with other mods
+- **CfgPatches class names become `#ifdef`-testable symbols** automatically
+
+### DayZ Class Hierarchy
+```
+Class
+  └── Managed (script-only, no engine GC)
+  └── IEntity
+        └── Object
+              └── Entity
+                    └── EntityAI
+                          ├── ItemBase (Inventory_Base)
+                          │     ├── Weapon_Base
+                          │     ├── Magazine_Base
+                          │     └── Clothing_Base
+                          ├── Man → DayZPlayer → PlayerBase → SurvivorBase
+                          ├── Transport → Car → CarScript
+                          ├── DayZCreatureAI
+                          │     ├── DayZInfected → ZombieBase
+                          │     └── DayZAnimal → AnimalBase
+                          ├── Building → BuildingBase
+                          └── BaseBuildingBase (player constructions)
+```
+
+---
+
+## Functions & Methods: Additional Details
+
+### Method Overloading is NOT Supported
+Two methods with the same name cause a compile error. Workarounds:
+- Different names: `Send()`, `SendToPlayer()`, `SendToAll()`
+- `Ex()` suffix convention: `ExplosionEffects()` → `ExplosionEffectsEx()` (DayZ vanilla pattern)
+- Default parameters: `void Send(string data, bool guaranteed = true)`
+
+### Standalone (Global) Functions
+Functions can exist outside any class. Rare but used in vanilla for utility helpers.
+
+### event Keyword
+Marks methods as engine event handlers called at specific moments:
+```c
+event void OnPossess();
+protected event void GetTransform(inout vector transform[4]);
+```
+
+### proto Modifier Variants
+| Modifier | Meaning |
+|----------|---------|
+| `proto native` | Implemented in engine C++ code |
+| `proto native owned` | Returns a value the caller owns (memory) |
+| `proto volatile` | Function may yield/sleep or call back into script |
+| `proto native external` | Binding for cross-module calls |
+
+### thread Keyword (Coroutines)
+NOT OS threads — coroutine-like constructs:
+```c
+// Declaration
+thread void LongOperation()
+{
+    Print("Step 1");
+    Sleep(2000);        // Wait 2000ms — MUST be in threaded context
+    Print("Step 2");
+}
+
+// Start
+thread LongOperation();
+
+// Kill
+KillThread(owner, "LongOperation");
+```
+`Sleep(int ms)` is an engine intrinsic (no proto declaration). Calling outside a threaded context crashes.
+
+### CallLater API
+```c
+// One-shot after 2 seconds
+GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this, "MyMethod", 2000, false);
+
+// Repeating every 5 seconds
+GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this, "MyMethod", 5000, true);
+
+// Cancel
+GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(this, "MyMethod");
+
+// Categories: CALL_CATEGORY_SYSTEM (0), CALL_CATEGORY_GUI (1), CALL_CATEGORY_GAMEPLAY (2)
+```
+
+---
+
+## Collections: Additional Details
+
+### Pre-Defined Typedefs
+```c
+TStringArray     = array<string>
+TFloatArray      = array<float>
+TIntArray        = array<int>
+TBoolArray       = array<bool>
+TVectorArray     = array<vector>
+TStringIntMap    = map<string, int>
+TStringStringMap = map<string, string>
+TIntStringMap    = map<int, string>
+TStringFloatMap  = map<string, float>
+```
+
+### array Additional Methods
+```c
+names.Reserve(100);             // Pre-allocate capacity (no Count change)
+names.Resize(50);               // Change element count (fill with defaults or truncate)
+names.Sort(true);               // true = descending order
+names.GetRandomIndex();         // Random valid index
+names.Debug();                  // Print all elements to script log
+```
+
+### map.Insert() vs map.Set() — CRITICAL
+- `map.Insert(key, val)` — Does NOT update if key exists (returns false, value unchanged)
+- `map.Set(key, val)` — Insert-or-update (always succeeds)
+```c
+scores.Insert("player1", 100);  // Added
+scores.Insert("player1", 200);  // IGNORED! Still 100
+scores.Set("player1", 200);     // Updated to 200
+```
+
+### array<ref T> vs array<T> — Ownership
+- `array<ref MyClass>` — Strong references: array keeps objects alive
+- `array<MyClass>` — Weak references: objects may be destroyed while in array
+```c
+ref array<ref MyObj> owned = new array<ref MyObj>();   // Objects live as long as array holds them
+ref array<MyObj> weak = new array<MyObj>();             // Objects may become null if destroyed elsewhere
+```
+
+### Static Arrays
+- Fixed-size: `int arr[5]` — cannot resize
+- Passed by reference to functions (unlike primitives)
+- Out-of-bounds = undefined behavior (no runtime check)
+- Can initialize: `float dmg[3] = {10.5, 25.0, 50.0};`
+- `foreach` works: `foreach (int val : arr) { }`
+
+---
+
+## Memory: Additional Details
+
+### Managed vs Non-Managed Weak Reference Safety
+- **Managed classes**: Weak references auto-set to `null` when object deleted (safe)
+- **Non-Managed classes**: Weak references become dangling pointers on delete (crash!)
+
+### delete Keyword
+Manually destroys an object immediately regardless of refcount. All references set to null (on Managed classes):
+```c
+MyClass obj = new MyClass();
+delete obj;  // Destroyed immediately, obj becomes null
+```
+
+### autoptr Explanation
+`autoptr` is a scoped strong reference, identical to `ref` but intended for local variables. Since local variables are already implicitly strong references, `autoptr` is redundant in practice. Use `ref` instead.
+
+---
+
+## Enums: Additional Details
+
+### Enum Inheritance
+```c
+enum EBaseColor { RED, GREEN, BLUE }
+enum EExtendedColor : EBaseColor { YELLOW, CYAN }
+// YELLOW = 3, CYAN = 4 (continues from parent)
+// Parent values accessible: EExtendedColor.RED works
+```
+
+### COUNT Sentinel Pattern
+```c
+enum EMode { EASY, MEDIUM, HARD, COUNT }
+for (int i = 0; i < EMode.COUNT; i++) { /* iterate all modes */ }
+```
+
+### Common Engine Defines
+| Define | When Active |
+|--------|------------|
+| `SERVER` | Dedicated server AND listen server |
+| `DEVELOPER` | DayZDiag executable |
+| `DIAG_DEVELOPER` | DayZDiag executable |
+| `PLATFORM_WINDOWS` | Windows build |
+| `PLATFORM_XBOX` | Xbox build |
+| `PLATFORM_PS4` | PlayStation build |
+| `BUILD_EXPERIMENTAL` | Experimental branch |
+
+### Custom Defines via config.cpp
+```cpp
+class CfgMods { class MyMod { ... class defs { defines[] = { "MYMOD_ENABLED" }; }; }; };
+```
+Since DayZ 1.21, the CfgMods class name is auto-registered as a `#define`.
+
+### #define Only Creates Existence Flags
+No value substitution: `#define MAX_HP 100` does NOT work. Use `const int MAX_HP = 100;` instead.
+
+### #else Directive
+```c
+#ifdef SERVER
+    // Server code
+#else
+    // Client code
+#endif
+```
+
+### Bitflag Removal
+```c
+flags = flags & ~EPermFlags.WRITE;  // Remove WRITE flag
+```
+
+---
+
+## Reflection: Additional Details
+
+### EnScript.GetClassVar / SetClassVar
+Read/write member variables by name at runtime:
+```c
+int result = EnScript.GetClassVar(obj, "m_Health", 0, outValue);  // 1=success, 0=failure
+int result = EnScript.SetClassVar(obj, "m_Health", 0, newValue);  // index=0 for non-arrays
+```
+Fails silently on wrong variable names.
+
+### typename Reflection Methods
+```c
+typename t = MyClass;
+int count = t.GetVariableCount();
+for (int i = 0; i < count; i++)
+{
+    string name = t.GetVariableName(i);
+    typename type = t.GetVariableType(i);
+}
+```
+
+### IsKindOf vs IsInherited — Different Hierarchies
+- `IsKindOf(string)` — Checks **config.cpp** class hierarchy. Defined on `Object` only. Slower.
+- `IsInherited(typename)` — Checks **script class** hierarchy. Defined on `Class`. Faster.
+```c
+entity.IsKindOf("Apple");              // Checks config.cpp CfgVehicles hierarchy
+entity.IsInherited(ItemBase);          // Checks Enforce Script class hierarchy
+```
+
+---
+
+## Error Handling: Additional Details
+
+### ErrorEx() with Severity Levels
+```c
+ErrorEx("Something happened", ErrorExSeverity.INFO);      // Info in .RPT log
+ErrorEx("Potential issue", ErrorExSeverity.WARNING);       // Warning in .RPT
+ErrorEx("Critical failure", ErrorExSeverity.ERROR);        // Error in .RPT with stack trace
+```
+Does NOT stop execution. Writes to `.RPT` log file.
+
+### DumpStackString()
+Capture current call stack as a string:
+```c
+string stack;
+DumpStackString(stack);
+Print(stack);
+```
+
+### JsonFileLoader Modern API
+Newer `LoadFile()` returns `bool` (vs legacy `JsonLoadFile()` returning `void`):
+```c
+MyConfig cfg = new MyConfig();
+if (!JsonFileLoader<MyConfig>.LoadFile(path, cfg))
+{
+    Print("Failed to load config");
+}
+```
+
+---
+
+## Math: Additional Functions
+
+```c
+// Inclusive random (upper bound included)
+Math.RandomIntInclusive(1, 10);     // [1, 10] inclusive both ends
+Math.RandomFloatInclusive(0.0, 1.0);
+
+// Utility
+Math.RandomBool();                  // Random true/false
+Math.Randomize(-1);                 // Seed RNG (-1 = system time)
+Math.SignFloat(f);                  // Returns -1.0, 0.0, or 1.0
+Math.SignInt(i);                    // Returns -1, 0, or 1
+Math.SqrFloat(f);                  // Square (not sqrt)
+Math.ModFloat(a, b);               // Float modulo
+Math.WrapInt(val, min, max);       // Wrap into range
+Math.IsInRange(val, min, max);     // Range check
+
+// Angles (degrees)
+Math.NormalizeAngle(deg);           // Normalize to [0, 360)
+Math.DiffAngle(a, b);              // Shortest path between angles
+
+// Smooth interpolation
+Math.SmoothCD(current, target, velocity[], smoothTime, maxSpeed, dt);
+// velocity MUST be a float array (modified in place)
+
+// Constants
+Math.PI2;                           // 2 * PI
+Math.PI_HALF;                       // PI / 2
+Math.EULER;                         // Euler's number
+```
+
+---
+
+## String: Additional Methods
+
+```c
+s.IndexOfFrom(5, "World");         // Find from index 5 onward
+s.LastIndexOf("o");                 // Find last occurrence
+s.Get(0);                           // Get char at index (returns string)
+s.Set(0, "h");                      // Set char at index
+
+// Static join
+string.Join(", ", myArray);         // Join array with separator
+
+// Number formatting
+int num = 42;
+num.ToStringLen(5);                 // "00042" (zero-padded)
+```
+
+---
+
+## Vector: Additional Methods
+
+```c
+// Constructor function (alternative to string literal)
+vector pos = Vector(100.0, 20.0, 50.0);
+
+// Squared distance (faster, no sqrt)
+float distSq = vector.DistanceSq(a, b);
+
+// In-place normalize (modifies original)
+pos.Normalize();                    // vs Normalized() which returns new
+
+// Rotation
+vector rotated = vector.RotateAroundZeroDeg(vec, axis, angleDeg);
+
+// Random directions
+vector dir = vector.RandomDir();     // Random unit vector 3D
+vector dir2d = vector.RandomDir2D(); // Random unit vector XZ plane
+
+// DayZ coordinate system
+// [0] = X = East(+) / West(-)
+// [1] = Y = Up(+) / Down(-) (altitude)
+// [2] = Z = North(+) / South(-)
+
+// Math3D for matrix operations
+vector angles;
+Math3D.MatrixToAngles(transform, angles);
+Math3D.YawPitchRollMatrix(angles, outMatrix);
+Math3D.MatrixIdentity4(outMatrix);
+```
+
+---
+
+## Operator Precedence (Highest to Lowest)
+
+| Precedence | Operators |
+|-----------|-----------|
+| 1 | `()` `[]` `.` `::` |
+| 2 | `!` `~` `-` (unary) `++` `--` |
+| 3 | `*` `/` `%` |
+| 4 | `+` `-` |
+| 5 | `<<` `>>` |
+| 6 | `<` `<=` `>` `>=` |
+| 7 | `==` `!=` |
+| 8 | `&` |
+| 9 | `^` |
+| 10 | `|` |
+| 11 | `&&` |
+| 12 | `||` |
+| 13 | `=` `+=` `-=` `*=` `/=` `%=` `&=` `|=` `^=` `<<=` `>>=` |
