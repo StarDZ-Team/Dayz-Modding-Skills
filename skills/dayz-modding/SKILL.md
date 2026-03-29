@@ -527,28 +527,33 @@ Script compiles but nothing happens? → Flowchart D
 
 ## 13. Reference System
 
-**IMPORTANT:** All reference material is bundled locally in this skill. Do NOT fetch external URLs at runtime. The local reference files below are the authoritative source for agent use.
+### How to Access References
 
-### Reference Files (Local — Use These)
-| File | Coverage |
-|------|----------|
-| [enforce-script-reference.md](references/enforce-script-reference.md) | Complete language: types, classes, collections, memory, control flow, strings, math, vectors, casting, enums, reflection, error handling, 40+ gotchas |
-| [api-patterns.md](references/api-patterns.md) | Engine API: entities, RPC, file I/O, GUI, timers, players, missions, weather, sound, actions, vehicles, cameras, PPE, notifications, input, crafting, construction, animation, terrain, particles, zombie AI, admin, economy |
-| [architecture.md](references/architecture.md) | Mod structure: 5-layer hierarchy, config.cpp, mod.cpp, server/client contexts, singletons, modules, events, permissions, config persistence, stringtable, inputs.xml |
-| [gui-patterns.md](references/gui-patterns.md) | Professional UI: layout format, sizing system, containers, event handling, UIScriptedMenu, dialogs, COT/VPP/Expansion patterns, canvas drawing, map widget, preview widgets, styles/fonts |
-| [advanced-patterns.md](references/advanced-patterns.md) | Performance, troubleshooting, diagnostics, debug commands, RPC advanced, file patching, launch parameters, pre-release checklist |
-| [development-workflow.md](references/development-workflow.md) | Systematic workflow: planning, defensive coding, build/verify, debugging protocol, code review |
+All reference material is **bundled locally** in the `references/` directory alongside this SKILL.md file. Use the `Read` tool (or `Grep` for targeted lookups) on these local files — they are the sole authoritative source.
 
-### When to Consult References
-| Situation | Reference |
-|-----------|-----------|
-| Unfamiliar API method | `api-patterns.md` |
-| GUI / widget work | `gui-patterns.md` |
-| Compilation error | `advanced-patterns.md` troubleshooting section |
-| Designing a new system | `architecture.md` |
-| Performance concern | `advanced-patterns.md` |
-| Config file format | `architecture.md` config sections |
-| Development workflow | `development-workflow.md` |
+**Do NOT fetch external URLs, wikis, or raw GitHub content at runtime.** All patterns needed for code generation are already captured in the local files below.
+
+### Reference Files
+| File | Coverage | When to Consult |
+|------|----------|-----------------|
+| [enforce-script-reference.md](references/enforce-script-reference.md) | Complete language: types, classes, collections, memory, control flow, strings, math, vectors, casting, enums, reflection, error handling, 40+ gotchas | Syntax questions, type behavior, language features |
+| [api-patterns.md](references/api-patterns.md) | Engine API: entities, RPC, file I/O, GUI, timers, players, missions, weather, sound, actions, vehicles, cameras, PPE, notifications, input, crafting, construction, animation, terrain, particles, zombie AI, admin, economy | Unfamiliar API method, engine interactions |
+| [architecture.md](references/architecture.md) | Mod structure: 5-layer hierarchy, config.cpp, mod.cpp, server/client contexts, singletons, modules, events, permissions, config persistence, stringtable, inputs.xml | Designing systems, config file format, mod structure |
+| [gui-patterns.md](references/gui-patterns.md) | Professional UI: layout format, sizing system, containers, event handling, UIScriptedMenu, dialogs, COT/VPP/Expansion patterns, canvas drawing, map widget, preview widgets, styles/fonts | Any GUI / widget / .layout work |
+| [advanced-patterns.md](references/advanced-patterns.md) | Performance, troubleshooting, diagnostics, debug commands, RPC advanced, file patching, launch parameters, pre-release checklist | Performance tuning, compilation errors, debugging |
+| [development-workflow.md](references/development-workflow.md) | Systematic workflow: planning, defensive coding, build/verify, debugging protocol, code review | Development workflow and process |
+
+### Lookup Examples
+```
+# Verify an API exists before using it:
+Grep for "GetPlayer" in references/api-patterns.md
+
+# Find the correct pattern for RPC:
+Read references/api-patterns.md, search for "## RPC"
+
+# Check if a language feature exists:
+Grep for "ternary" in references/enforce-script-reference.md
+```
 
 ### Online Wiki (Human Reference Only)
-The [DayZ Modding Wiki](https://github.com/StarDZ-Team/DayZ-Modding-Wiki) is maintained separately for human readers. Agents should NOT fetch wiki content at runtime — all relevant patterns are already captured in the local reference files above.
+The [DayZ Modding Wiki](https://github.com/StarDZ-Team/DayZ-Modding-Wiki) is maintained separately for human readers. Agents must NOT fetch wiki content — all relevant patterns are captured in the local reference files above.
