@@ -1308,3 +1308,316 @@ wave.Play();
 <var name="TimeLogin" type="0" value="15"/>
 <var name="TimeLogout" type="0" value="15"/>
 ```
+
+---
+
+## Persistence (OnStoreSave / OnStoreLoad)
+
+DayZ persists entity data through a positional binary stream. Fields are written and read in **strict order**. Adding new fields requires a version guard.
+
+### Version Guard Pattern
+
+```c
+const int MYMOD_SAVE_VERSION = 2;
+
+class MyMod_CustomItem : ItemBase
+{
+    protected bool  m_IsSpecial;         // v1
+    protected float m_SpecialAmount;     // v2 (added later)
+
+    // SAVE — always call super FIRST, then write your fields in order
+    override void OnStoreSave(ParamsWriteContext ctx)
+    {
+        super.OnStoreSave(ctx);
+        ctx.Write(MYMOD_SAVE_VERSION);
+        ctx.Write(m_IsSpecial);          // v1 field
+        ctx.Write(m_SpecialAmount);      // v2 field
+    }
+
+    // LOAD — read in the SAME ORDER as written
+    override bool OnStoreLoad(ParamsReadContext ctx, int version)
+    {
+        if (!super.OnStoreLoad(ctx, version))
+            return false;
+
+        int myVersion;
+        if (!ctx.Read(myVersion))
+            return false;
+
+        // v1 fields — always present
+        if (!ctx.Read(m_IsSpecial))
+            return false;
+
+        // v2 fields — only in saves written at version >= 2
+        if (myVersion < 2)
+        {
+            m_SpecialAmount = 0.0;  // default for old saves
+            return true;
+        }
+
+        if (!ctx.Read(m_SpecialAmount))
+            return false;
+
+        return true;
+    }
+}
+```
+
+### PlayerBase Persistence
+
+The `version` parameter is the **game version** integer (e.g., 129 = v1.29):
+
+```c
+modded class PlayerBase
+{
+    protected int m_MyMod_Points;
+
+    override void OnStoreSave(ParamsWriteContext ctx)
+    {
+        super.OnStoreSave(ctx);
+        ctx.Write(m_MyMod_Points);
+    }
+
+    override bool OnStoreLoad(ParamsReadContext ctx, int version)
+    {
+        if (!super.OnStoreLoad(ctx, version))
+            return false;
+
+        if (version < 129)  // game version when this field shipped
+            return true;
+
+        if (!ctx.Read(m_MyMod_Points))
+            return false;
+
+        return true;
+    }
+}
+```
+
+### CF ModStorage Alternative
+
+CF provides per-entity mod storage in a separate side-channel — never corrupts vanilla data:
+
+```c
+modded class ItemBase
+{
+    override void CF_OnStoreSave(CF_ModStorageMap storage)
+    {
+        super.CF_OnStoreSave(storage);
+        CF_ModStorage ctx = storage.Get("MyMod");
+        ctx.Write(m_MyModValue);
+    }
+
+    override bool CF_OnStoreLoad(CF_ModStorageMap storage)
+    {
+        if (!super.CF_OnStoreLoad(storage))
+            return false;
+        if (!storage.Contains("MyMod"))
+            return true;  // mod data doesn't exist in old saves
+        CF_ModStorage ctx = storage.Get("MyMod");
+        if (!ctx.Read(m_MyModValue)) return false;
+        return true;
+    }
+}
+```
+
+### Persistence Rules
+
+| Rule | Detail |
+|------|--------|
+| `super.*` FIRST on save, check return on load | Breaking this corrupts the entire entity's save data |
+| Write your own version header | Never rely on game `version` param alone |
+| Read = exact mirror of write | Any mismatch = corrupted stream → entity deleted |
+| New fields at the END only | Never insert between existing fields |
+| Return `false` = entity deleted | Only return false if stream is genuinely broken |
+| Test fresh save AND upgrade from old save | Both paths must work before shipping |
+
+---
+
+## Agent / Disease System
+
+### eAgents — Disease Sources
+
+```c
+// Add disease agent to player
+player.GetAgents().AddAgent(eAgents.SALMONELLA_BACTERIA, 1000);
+
+// Remove agent
+player.GetAgents().RemoveAgent(eAgents.SALMONELLA_BACTERIA);
+
+// Check agent level
+int level = player.GetAgents().GetAgentLevel(eAgents.SALMONELLA_BACTERIA);
+```
+
+| Constant | Description |
+|----------|-------------|
+| `eAgents.SALMONELLA_BACTERIA` | Salmonella food poisoning |
+| `eAgents.CHOLERA_BACTERIA` | Cholera (dirty water) |
+| `eAgents.BRAIN_DISEASE` | Kuru prion disease |
+| `eAgents.WOUND_AGENT` | Generic wound infection |
+| `eAgents.INFLUENZA_AGENT` | Common cold / flu |
+| `eAgents.CHEMICAL_POISON` | Chemical poisoning |
+
+### eModifiers — Status Effects
+
+```c
+// Add visible status effect
+player.GetSymptomsManager().AddModifier(eModifiers.MDF_POISONED);
+
+// Remove
+player.GetSymptomsManager().RemoveModifier(eModifiers.MDF_POISONED);
+
+// Check
+bool has = player.GetSymptomsManager().HasModifier(eModifiers.MDF_POISONED);
+```
+
+| Constant | Description |
+|----------|-------------|
+| `eModifiers.MDF_POISONED` | Poisoned status |
+| `eModifiers.MDF_FOODPOISONING` | Food poisoning symptoms |
+
+---
+
+## Vanilla Plugin System
+
+Plugins are global singletons auto-instantiated by the engine at mission start. Access via `GetPlugin()`.
+
+### Defining a Plugin
+
+```c
+// Scripts/4_World/Plugins/PluginMyMod.c
+class PluginMyMod : PluginBase
+{
+    protected ref map<string, int> m_Points;
+
+    override void OnInit()
+    {
+        m_Points = new map<string, int>();
+    }
+
+    int GetPoints(string uid)
+    {
+        int val;
+        m_Points.Find(uid, val);
+        return val;
+    }
+
+    void AddPoints(string uid, int delta)
+    {
+        m_Points.Set(uid, GetPoints(uid) + delta);
+    }
+}
+```
+
+### Accessing from Anywhere
+
+```c
+PluginMyMod pm;
+if (Class.CastTo(pm, GetPlugin(PluginMyMod)))
+{
+    pm.AddPoints(player.GetIdentity().GetId(), 10);
+}
+```
+
+### Plugin Lifecycle
+
+| Method | When |
+|--------|------|
+| `OnInit()` | After scripts compile, before mission objects |
+| `OnDestroy()` | Server shutdown |
+| `OnUpdate(float dt)` | Each frame (opt-in via `EnableUpdate()` in OnInit) |
+
+### Plugin vs CF Module
+
+| | Vanilla Plugin | CF Module |
+|---|---|---|
+| Dependency | None | Requires CF |
+| Event hooks | Manual (OnUpdate) | Rich event bus |
+| Persistence | Manual | CF ModStorage |
+| Use when | Simple shared services, zero deps | Feature-rich mods with CF |
+
+---
+
+## ItemBase Detailed API
+
+### Quantity System
+
+```c
+ItemBase item;
+float qty = item.GetQuantity();              // Current quantity
+float max = item.GetQuantityMax();           // Config maximum
+float pct = item.GetQuantityNormalized();    // 0.0-1.0
+item.SetQuantity(500.0);
+item.AddQuantity(100.0);
+bool empty = item.IsEmpty();
+```
+
+### Liquid Type
+
+```c
+int liquidType = item.GetLiquidType();       // LIQUID_WATER, etc.
+item.SetLiquidType(LIQUID_WATER);
+```
+
+### Item State
+
+```c
+bool ruined  = item.IsRuined();
+bool damaged = item.IsDamaged();
+float temp   = item.GetTemperature();
+item.SetTemperature(37.0);
+float wet    = item.GetWet();                // 0.0-1.0
+item.SetWet(0.5);
+```
+
+### Containment
+
+```c
+EntityAI owner  = item.GetHierarchyRootPlayer(); // Owning PlayerBase or null
+EntityAI parent = item.GetHierarchyParent();      // Direct parent container
+bool inCargo    = item.IsInCargo();
+```
+
+---
+
+## Player State Checks
+
+```c
+bool alive        = player.IsAlive();
+bool unconscious  = player.IsUnconscious();
+bool restrained   = player.IsRestrained();
+bool bleeding     = player.IsBleeding();
+bool sprinting    = player.IsSprinting();
+bool inVehicle    = player.IsInVehicle();
+
+// Aim direction
+vector aimPos     = player.GetAimPosition();
+
+// Server messages
+player.MessageAction("Inventory full.");     // Center-screen action text
+```
+
+---
+
+## Vanilla eRPCs Reference
+
+Custom mods must use high ID ranges to avoid collisions with vanilla:
+
+| Constant | Value | Direction | Description |
+|----------|-------|-----------|-------------|
+| `ERPCs.RPC_USER_ACTION_MESSAGE` | 13 | S→C | Display action result text |
+| `ERPCs.RPC_CHAT` | 144 | S→C | Chat message delivery |
+| `ERPCs.RPC_DAMAGE_VALUE_SYNC` | 150 | S→C | Damage zone sync |
+| `ERPCs.RPC_SCRIPT_REMOTE_CALLABLE` | 20000+ | both | Community convention start |
+
+**Rule:** Custom RPC IDs should start at 20000+ and be documented in a dedicated enum to avoid collisions.
+
+```c
+// Scripts/3_Game/MyMod_ERPCs.c
+enum MyMod_ERPCs
+{
+    RPC_NOTIFICATION     = 20000,
+    RPC_SYNC_DATA        = 20001,
+    RPC_CLIENT_REQUEST   = 20002,
+}
+```

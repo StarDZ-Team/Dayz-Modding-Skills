@@ -7,7 +7,6 @@ metadata:
   author: StarDZ-Team
   version: "2.0.0"
   source: https://github.com/StarDZ-Team/dayz-modding-skill
-  wiki: https://github.com/StarDZ-Team/DayZ-Modding-Wiki
 ---
 
 # DayZ Modding Expert Skill
@@ -137,6 +136,12 @@ These rules are NON-NEGOTIABLE. Violating any produces broken code.
 13. **`ChangeGameFocus()` must be balanced** — Every +1 needs matching -1
 14. **`SetSynchDirty()` required after changing synced vars** — #1 cause of "data not syncing"
 15. **RPC read/write order MUST match exactly** — Single mismatch corrupts all subsequent reads
+
+16. **`OnStoreLoad` read order must exactly mirror `OnStoreSave` write order** — Any mismatch corrupts the binary stream and the entity gets deleted on next server start.
+
+17. **Max ~32 NetSync variables per entity** — Use bitfields to pack multiple booleans. Late `RegisterNetSyncVariable*()` calls (outside `Init()`) silently fail.
+
+18. **TextListboxWidget uses `colums` (one 'n')** — The engine property is misspelled. Using `columns` fails silently.
 
 ### Memory & Lifecycle Rules
 
@@ -522,28 +527,9 @@ Script compiles but nothing happens? → Flowchart D
 
 ## 13. Reference System
 
-### Online Wiki
-**Repository:** `https://github.com/StarDZ-Team/DayZ-Modding-Wiki`
+**IMPORTANT:** All reference material is bundled locally in this skill. Do NOT fetch external URLs at runtime. The local reference files below are the authoritative source for agent use.
 
-**Chapter URL pattern:**
-```
-https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/<part>/<chapter>.md
-```
-
-| Part | Directory | Topics |
-|------|-----------|--------|
-| 1 | `01-enforce-script/` | Language fundamentals, types, classes, memory, gotchas |
-| 2 | `02-mod-structure/` | 5-layer hierarchy, config.cpp, server/client architecture |
-| 3 | `03-gui-system/` | Widgets, layouts, sizing, events, dialogs, real mod patterns |
-| 4 | `04-file-formats/` | Textures, models, audio, DayZ Tools, PBO packing |
-| 5 | `05-config-files/` | stringtable, inputs.xml, imagesets, server configs |
-| 6 | `06-engine-api/` | Entity, player, vehicle, sound, crafting, AI, terrain, admin |
-| 7 | `07-patterns/` | Singletons, modules, RPC, permissions, events, performance |
-| 8 | `08-tutorials/` | First mod through professional template |
-
-**Quick-access:** `cheatsheet.md`, `faq.md`, `glossary.md`, `troubleshooting.md`
-
-### Reference Files in This Skill
+### Reference Files (Local — Use These)
 | File | Coverage |
 |------|----------|
 | [enforce-script-reference.md](references/enforce-script-reference.md) | Complete language: types, classes, collections, memory, control flow, strings, math, vectors, casting, enums, reflection, error handling, 40+ gotchas |
@@ -556,10 +542,13 @@ https://raw.githubusercontent.com/StarDZ-Team/DayZ-Modding-Wiki/main/en/<part>/<
 ### When to Consult References
 | Situation | Reference |
 |-----------|-----------|
-| Unfamiliar API method | `api-patterns.md` or wiki `06-engine-api/` |
-| GUI / widget work | `gui-patterns.md` or wiki `03-gui-system/` |
-| Compilation error | `troubleshooting.md` or wiki FAQ |
-| Designing a new system | `architecture.md` or wiki `07-patterns/` |
+| Unfamiliar API method | `api-patterns.md` |
+| GUI / widget work | `gui-patterns.md` |
+| Compilation error | `advanced-patterns.md` troubleshooting section |
+| Designing a new system | `architecture.md` |
 | Performance concern | `advanced-patterns.md` |
 | Config file format | `architecture.md` config sections |
-| First time with a feature | Wiki tutorials `08-tutorials/` |
+| Development workflow | `development-workflow.md` |
+
+### Online Wiki (Human Reference Only)
+The [DayZ Modding Wiki](https://github.com/StarDZ-Team/DayZ-Modding-Wiki) is maintained separately for human readers. Agents should NOT fetch wiki content at runtime — all relevant patterns are already captured in the local reference files above.

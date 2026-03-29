@@ -546,6 +546,58 @@ modded class ItemBase
 }
 ```
 
+### NetSync Bitfield Pattern
+
+Pack multiple booleans into a single int to save bandwidth and variable slots (~32 max per entity):
+
+```c
+enum MyMod_SyncFlags
+{
+    IS_POISONED  = 1,   // bit 0
+    IS_EXHAUSTED = 2,   // bit 1
+    HAS_SHIELD   = 4,   // bit 2
+}
+
+modded class PlayerBase
+{
+    int m_MyMod_Flags;
+
+    override void Init()
+    {
+        super.Init();
+        RegisterNetSyncVariableInt("m_MyMod_Flags");
+    }
+
+    // Server: set a flag
+    void MyMod_SetFlag(int flag, bool value)
+    {
+        if (value)
+            m_MyMod_Flags |= flag;
+        else
+            m_MyMod_Flags &= ~flag;
+        SetSynchDirty();
+    }
+
+    // Client: decode in OnVariablesSynchronized
+    override void OnVariablesSynchronized()
+    {
+        super.OnVariablesSynchronized();
+        bool isPoisoned  = (m_MyMod_Flags & MyMod_SyncFlags.IS_POISONED)  != 0;
+        bool isExhausted = (m_MyMod_Flags & MyMod_SyncFlags.IS_EXHAUSTED) != 0;
+    }
+}
+```
+
+### NetSync Limits
+
+| Rule | Detail |
+|------|--------|
+| Max ~32 synced variables per entity | Use bitfields to stay under the limit |
+| `SetSynchDirty()` is entity-level | One call per update is enough for all vars |
+| `RegisterNetSyncVariableFloat` precision | `RegisterNetSyncVariableFloat("m_Val", 0.0, 1.0, 2)` — last param = decimal places (reduces bandwidth) |
+| NetSync is eventual | Don't assume client has latest value immediately after SetSynchDirty |
+| Register only in `Init()` | Late registration causes silent failure |
+
 ---
 
 ## Naming Conventions
@@ -963,3 +1015,133 @@ Enables: "Grant `Admin.*` but deny `Admin.Teleport`".
 3. `OnUpdate` always receives delta time — never assume fixed frame rate
 4. `OnMissionFinish` must clean up everything — every ref collection cleared, every subscription removed
 5. Modules should not depend on each other's initialization order — use lazy access
+
+---
+
+## Dabs Framework Integration
+
+[DabsFramework](https://github.com/InclementDab/DayZ-Dabs-Framework) provides attribute-driven development, eliminating registration boilerplate.
+
+### Attribute-Based Action Registration
+
+Instead of overriding `SetActions()` on every item, use `[RegisterAction]`:
+
+```c
+[RegisterAction(MyMod_CustomItem)]
+class ActionMyMod_Use : ActionSingleUseBase
+{
+    void ActionMyMod_Use()
+    {
+        m_CallbackClass = ActionSingleUseBaseCB;
+        m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_EAT;
+        m_Text = "Use Item";
+    }
+
+    override void CreateConditionComponents()
+    {
+        m_ConditionItem = new CCINonRuined();
+        m_ConditionTarget = new CCTNone();
+    }
+
+    override void OnExecuteServer(ActionData action_data)
+    {
+        // Server-side effect
+    }
+}
+```
+
+### Dabs MVC: ScriptView
+
+Binds `.layout` to a ViewModel class, reducing manual widget wiring:
+
+```c
+class MyMod_ViewModel : ScriptView
+{
+    string Title = "My Inventory";
+    int ItemCount = 0;
+
+    override void OnViewLoad()
+    {
+        super.OnViewLoad();
+        Refresh();
+    }
+
+    override void Refresh()
+    {
+        ItemCount = PlayerBase.Cast(GetGame().GetPlayer()).GetInventory().AttachmentCount();
+        NotifyPropertiesChanged({"ItemCount"});  // Auto-updates bound widgets
+    }
+
+    void BtnClose_OnClick() { Close(); }
+}
+```
+
+**Warning:** `NotifyPropertiesChanged` uses reflection to match property names to widget names. Misspelling fails silently.
+
+### Comparison
+
+| Feature | Vanilla | CF | Dabs |
+|---------|---------|-----|------|
+| Action registration | `SetActions()` override per item | Manual | `[RegisterAction]` attribute |
+| Module system | `PluginBase` | `CF_ModuleWorld` | `[CF_RegisterModule]` |
+| GUI binding | Manual widget wiring | Manual | MVC ScriptView + bindings |
+| Dependency | None | CF mod | CF + Dabs mods |
+
+---
+
+## ScriptCaller (Single Callback)
+
+For single function pointer callbacks (vs `ScriptInvoker` for multicast):
+
+```c
+// Create a caller pointing to a function
+ScriptCaller caller = ScriptCaller.Create(MyCallbackFunction);
+
+// Invoke it
+caller.Invoke(sender, args);
+
+// Comparison
+// ScriptCaller — single callback, one target
+// ScriptInvoker — multicast, many subscribers via Insert/Remove
+```
+
+---
+
+## DayZPlayerConstants (Common Action UIDs)
+
+| Constant | Description |
+|----------|-------------|
+| `DayZPlayerConstants.CMD_ACTIONMOD_EAT` | Eating animation |
+| `DayZPlayerConstants.CMD_ACTIONMOD_DRINK` | Drinking animation |
+| `DayZPlayerConstants.CMD_ACTIONMOD_BANDAGE` | Bandaging animation |
+| `DayZPlayerConstants.CMD_ACTIONFB_CRAFTING` | Crafting (full body) |
+| `DayZPlayerConstants.CMD_ACTIONFB_ASSEMBLE` | Assembly (full body) |
+| `DayZPlayerConstants.CMD_GESTUREFB_DANCE` | Dance emote |
+| `DayZPlayerConstants.CMD_GESTUREFB_SALUTE` | Salute emote |
+
+---
+
+## ECE Creation Flags Reference
+
+| Flag | Description |
+|------|-------------|
+| `ECE_PLACE_ON_SURFACE` | Snap to terrain surface |
+| `ECE_UPDATEPATHGRAPH` | Update AI navmesh |
+| `ECE_CREATEPHYSICS` | Create physics body |
+| `ECE_ROTATIONFLAGS` | Apply rotation |
+| `ECE_EQUIP` | Equip the item |
+| `ECE_EQUIP_ATTACHMENTS` | Attach default parts |
+| `ECE_EQUIP_CARGO` | Fill default cargo |
+| `ECE_IN_INVENTORY` | Create inside inventory |
+| `ECE_LOCAL` | Local-only (not networked) |
+| `ECE_NOLIFETIME` | No CE lifetime (won't despawn) |
+| `ECE_DYNAMIC_PERSISTENCY` | CE-tracked dynamic entity |
+
+```c
+// Common combinations
+// Spawn on ground with physics:
+GetGame().CreateObjectEx("Apple", pos, ECE_PLACE_ON_SURFACE | ECE_UPDATEPATHGRAPH, RF_DEFAULT);
+
+// Spawn vehicle with all parts:
+CarScript car = CarScript.Cast(GetGame().CreateObjectEx("OffroadHatchback", pos, ECE_PLACE_ON_SURFACE | ECE_CREATEPHYSICS | ECE_EQUIP_ATTACHMENTS, RF_DEFAULT));
+```
