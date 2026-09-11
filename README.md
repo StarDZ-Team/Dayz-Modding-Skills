@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://agentskills.io"><img src="https://img.shields.io/badge/Agent_Skills-compatible-blue?style=flat-square" alt="Agent Skills" /></a>
   <img src="https://img.shields.io/badge/lines-3,940+-green?style=flat-square" alt="3,940+ lines" />
-  <img src="https://img.shields.io/badge/files-7-orange?style=flat-square" alt="7 files" />
+  <img src="https://img.shields.io/badge/files-10-orange?style=flat-square" alt="10 files" />
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" alt="MIT" />
 </p>
 
@@ -29,6 +29,7 @@ When installed, your AI agent will:
 - **Use professional patterns** — singletons, RPC networking, modded classes, config persistence
 - **Optimize for performance** — widget pooling, batched processing, caching, debouncing
 - **Build production UI** — COT Module-Form-Window, CanvasWidget overlays, RichTextWidget
+- **Ship real assets** — `.p3d` LODs, `model.cfg`, materials and textures, PBO build and signing, and the Central Economy entries that make a custom item actually spawn
 - **Consult the wiki** — fetches chapters from the [DayZ Modding Wiki](https://github.com/StarDZ-Team/DayZ-Modding-Wiki) (92 chapters, 12 languages) when it needs deeper info
 
 ## Install
@@ -57,7 +58,10 @@ skills/dayz-modding/
     ├── architecture.md                   # Layers, singletons, CF modules, events, permissions
     ├── development-workflow.md           # Systematic workflow: plan, code, verify, debug
     ├── advanced-patterns.md              # Performance, troubleshooting, debug commands, input
-    └── gui-patterns.md                   # COT, VPP, CanvasWidget, RichText, MapWidget
+    ├── gui-patterns.md                   # COT, VPP, CanvasWidget, RichText, MapWidget
+    ├── model-asset-pipeline.md           # .p3d LODs, model.cfg, animations, .rvmat, textures
+    ├── build-and-deploy.md               # P:\ drive, PBO build, signing, launch, logs
+    └── central-economy.md                # types.xml, spawnable types, events, mission files
 ```
 
 **3,940+ lines** of curated DayZ modding knowledge covering:
@@ -71,6 +75,9 @@ skills/dayz-modding/
 | Professional UI | COT Module-Form-Window, UIActionManager factory, CanvasWidget/ESP, RichTextWidget, MapWidget, VPP windows |
 | Troubleshooting | 3 diagnostic flowcharts, error message table, debug commands, launch parameters |
 | Workflow | Plan before code, defensive coding protocol, build & verify, systematic debugging |
+| Models & Assets | `.p3d` MLOD/ODOL, LOD resolutions, collision components, Memory-LOD points, proxies, `model.cfg` skeletons/sections/animations, `AnimationSources`, `.paa` suffixes, `.rvmat` stages, DCC import winding |
+| Build & Ship | `P:\` work drive, DayZ Tools inventory, `$PBOPREFIX$`, AddonBuilder/FileBank, binarization, signing keys, `@Mod` layout, diag launch flags, file-patching limits, BattlEye kick codes, RPT vs script.log, Workshop publishing |
+| Central Economy | Mission file map, `cfgeconomycore.xml` `<ce folder>` pattern for mods, `types.xml` semantics and flags, controlled vocabularies, spawnable types, events, `mapgroupproto.xml`, `globals.xml`, `init.c` |
 
 ## Knowledge Source
 
